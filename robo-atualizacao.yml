@@ -7,6 +7,13 @@ on:
   workflow_dispatch:         # botão "Run workflow" para atualizar na hora
   push:
     branches: [main]         # publica de novo sempre que você alterar o site
+    paths:
+      - "index.html"
+      - "privacidade.html"
+      - "manifest.webmanifest"
+      - "icons/**"
+      - "scripts/**"
+      - ".github/workflows/atualizar-base.yml"
 
 permissions:
   contents: write
