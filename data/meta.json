@@ -1,0 +1,106 @@
+{
+ "atualizado_em": "2026-11-18T16:18-03:00",
+ "total_elementos": 624,
+ "eletropostos": 407,
+ "postos_combustivel_proximos_ou_com_recarga": 142,
+ "open_charge_map_adicionados": 0,
+ "estados_com_falha_hoje": [],
+ "fonte_osm": "mapa completo do Brasil (Geofabrik)",
+ "por_uf": {
+  "AL": {
+   "eletropostos": 1,
+   "postos_combustivel": 0
+  },
+  "AM": {
+   "eletropostos": 5,
+   "postos_combustivel": 3
+  },
+  "BA": {
+   "eletropostos": 22,
+   "postos_combustivel": 7
+  },
+  "CE": {
+   "eletropostos": 24,
+   "postos_combustivel": 9
+  },
+  "DF": {
+   "eletropostos": 7,
+   "postos_combustivel": 0
+  },
+  "ES": {
+   "eletropostos": 4,
+   "postos_combustivel": 2
+  },
+  "GO": {
+   "eletropostos": 21,
+   "postos_combustivel": 9
+  },
+  "MA": {
+   "eletropostos": 6,
+   "postos_combustivel": 1
+  },
+  "MG": {
+   "eletropostos": 28,
+   "postos_combustivel": 13
+  },
+  "MS": {
+   "eletropostos": 7,
+   "postos_combustivel": 1
+  },
+  "MT": {
+   "eletropostos": 15,
+   "postos_combustivel": 3
+  },
+  "PA": {
+   "eletropostos": 18,
+   "postos_combustivel": 7
+  },
+  "PE": {
+   "eletropostos": 54,
+   "postos_combustivel": 25
+  },
+  "PI": {
+   "eletropostos": 2,
+   "postos_combustivel": 1
+  },
+  "PR": {
+   "eletropostos": 25,
+   "postos_combustivel": 7
+  },
+  "RJ": {
+   "eletropostos": 15,
+   "postos_combustivel": 8
+  },
+  "RN": {
+   "eletropostos": 9,
+   "postos_combustivel": 3
+  },
+  "RO": {
+   "eletropostos": 2,
+   "postos_combustivel": 0
+  },
+  "RR": {
+   "eletropostos": 2,
+   "postos_combustivel": 0
+  },
+  "RS": {
+   "eletropostos": 38,
+   "postos_combustivel": 6
+  },
+  "SC": {
+   "eletropostos": 26,
+   "postos_combustivel": 12
+  },
+  "SP": {
+   "eletropostos": 74,
+   "postos_combustivel": 23
+  },
+  "TO": {
+   "eletropostos": 2,
+   "postos_combustivel": 2
+  }
+ },
+ "fontes": [
+  "OpenStreetMap (ODbL)"
+ ]
+}
