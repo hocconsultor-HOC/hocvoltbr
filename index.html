@@ -858,7 +858,17 @@ async function fetchOcm(scope, key){
     return filterBase(ocmToElements(await r.json()), scope);
   } finally { clearTimeout(tm); }
 }
+function dedupOcm(list){   // o Open Charge Map às vezes tem o mesmo local cadastrado duas vezes
+  const out = [];
+  (list||[]).forEach(o => {
+    const n = norm((o.tags||{}).name || "");
+    if(out.some(x => hav(x, o) < 40 && (norm((x.tags||{}).name || "") === n || hav(x, o) < 8))) return;
+    out.push(o);
+  });
+  return out;
+}
 function mergeSources(osm, ocm){
+  ocm = dedupOcm(ocm);
   if(!ocm || !ocm.length) return osm || [];
   const ch = (osm||[]).filter(e => e.tags && e.tags.amenity==="charging_station").map(coord).filter(Boolean);
   return (osm||[]).concat(ocm.filter(o => !ch.some(c => hav(c, o) < 60)));
