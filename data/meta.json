@@ -1,106 +1,123 @@
 {
- "atualizado_em": "2026-11-18T16:18-03:00",
- "total_elementos": 624,
- "eletropostos": 407,
- "postos_combustivel_proximos_ou_com_recarga": 142,
- "open_charge_map_adicionados": 0,
+ "atualizado_em": "2026-11-18T17:17-03:00",
+ "total_elementos": 3484,
+ "eletropostos": 2401,
+ "postos_combustivel_proximos_ou_com_recarga": 823,
+ "open_charge_map_adicionados": 1994,
  "estados_com_falha_hoje": [],
  "fonte_osm": "mapa completo do Brasil (Geofabrik)",
  "por_uf": {
-  "AL": {
-   "eletropostos": 1,
+  "AC": {
+   "eletropostos": 2,
    "postos_combustivel": 0
+  },
+  "AL": {
+   "eletropostos": 33,
+   "postos_combustivel": 9
   },
   "AM": {
-   "eletropostos": 5,
-   "postos_combustivel": 3
+   "eletropostos": 16,
+   "postos_combustivel": 4
+  },
+  "AP": {
+   "eletropostos": 2,
+   "postos_combustivel": 0
   },
   "BA": {
-   "eletropostos": 22,
-   "postos_combustivel": 7
+   "eletropostos": 116,
+   "postos_combustivel": 38
   },
   "CE": {
-   "eletropostos": 24,
-   "postos_combustivel": 9
+   "eletropostos": 135,
+   "postos_combustivel": 34
   },
   "DF": {
-   "eletropostos": 7,
-   "postos_combustivel": 0
+   "eletropostos": 125,
+   "postos_combustivel": 19
   },
   "ES": {
-   "eletropostos": 4,
-   "postos_combustivel": 2
+   "eletropostos": 100,
+   "postos_combustivel": 36
   },
   "GO": {
-   "eletropostos": 21,
-   "postos_combustivel": 9
+   "eletropostos": 209,
+   "postos_combustivel": 51
   },
   "MA": {
-   "eletropostos": 6,
-   "postos_combustivel": 1
-  },
-  "MG": {
-   "eletropostos": 28,
-   "postos_combustivel": 13
-  },
-  "MS": {
-   "eletropostos": 7,
-   "postos_combustivel": 1
-  },
-  "MT": {
-   "eletropostos": 15,
-   "postos_combustivel": 3
-  },
-  "PA": {
-   "eletropostos": 18,
-   "postos_combustivel": 7
-  },
-  "PE": {
-   "eletropostos": 54,
-   "postos_combustivel": 25
-  },
-  "PI": {
-   "eletropostos": 2,
-   "postos_combustivel": 1
-  },
-  "PR": {
-   "eletropostos": 25,
-   "postos_combustivel": 7
-  },
-  "RJ": {
-   "eletropostos": 15,
-   "postos_combustivel": 8
-  },
-  "RN": {
-   "eletropostos": 9,
-   "postos_combustivel": 3
-  },
-  "RO": {
-   "eletropostos": 2,
-   "postos_combustivel": 0
-  },
-  "RR": {
-   "eletropostos": 2,
-   "postos_combustivel": 0
-  },
-  "RS": {
-   "eletropostos": 38,
-   "postos_combustivel": 6
-  },
-  "SC": {
-   "eletropostos": 26,
-   "postos_combustivel": 12
-  },
-  "SP": {
-   "eletropostos": 74,
+   "eletropostos": 52,
    "postos_combustivel": 23
   },
-  "TO": {
-   "eletropostos": 2,
+  "MG": {
+   "eletropostos": 196,
+   "postos_combustivel": 66
+  },
+  "MS": {
+   "eletropostos": 19,
    "postos_combustivel": 2
+  },
+  "MT": {
+   "eletropostos": 29,
+   "postos_combustivel": 7
+  },
+  "PA": {
+   "eletropostos": 27,
+   "postos_combustivel": 10
+  },
+  "PB": {
+   "eletropostos": 22,
+   "postos_combustivel": 10
+  },
+  "PE": {
+   "eletropostos": 105,
+   "postos_combustivel": 54
+  },
+  "PI": {
+   "eletropostos": 51,
+   "postos_combustivel": 22
+  },
+  "PR": {
+   "eletropostos": 193,
+   "postos_combustivel": 47
+  },
+  "RJ": {
+   "eletropostos": 157,
+   "postos_combustivel": 84
+  },
+  "RN": {
+   "eletropostos": 42,
+   "postos_combustivel": 13
+  },
+  "RO": {
+   "eletropostos": 10,
+   "postos_combustivel": 2
+  },
+  "RR": {
+   "eletropostos": 4,
+   "postos_combustivel": 1
+  },
+  "RS": {
+   "eletropostos": 181,
+   "postos_combustivel": 56
+  },
+  "SC": {
+   "eletropostos": 138,
+   "postos_combustivel": 58
+  },
+  "SE": {
+   "eletropostos": 7,
+   "postos_combustivel": 5
+  },
+  "SP": {
+   "eletropostos": 402,
+   "postos_combustivel": 158
+  },
+  "TO": {
+   "eletropostos": 28,
+   "postos_combustivel": 14
   }
  },
  "fontes": [
-  "OpenStreetMap (ODbL)"
+  "OpenStreetMap (ODbL)",
+  "Open Charge Map (CC BY-SA 4.0)"
  ]
 }
