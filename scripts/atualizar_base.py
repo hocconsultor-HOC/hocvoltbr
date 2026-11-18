@@ -58,24 +58,26 @@ def norm(s):
     s = unicodedata.normalize("NFD", str(s or "")).encode("ascii", "ignore").decode()
     return s.lower().strip()
 
-def http_json(url, data=None, timeout=200):
+def http_json(url, data=None, timeout=160):
     req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 def overpass_uf(uf):
-    q = f"""[out:json][timeout:180];
+    # consulta leve: só o que fica junto dos carregadores (postos de combustível, shoppings, mercados, estacionamentos)
+    q = f"""[out:json][timeout:150];
 area["ISO3166-2"="BR-{uf}"]->.a;
 nwr["amenity"="charging_station"](area.a)->.ev;
-nwr["amenity"="fuel"](area.a)->.fn;
-nwr["shop"~"^(mall|supermarket|department_store)$"]["opening_hours"](area.a)->.v;
-nwr["amenity"="parking"]["opening_hours"](area.a)->.p;
-(.ev;.fn;.v;.p;);
+nwr["amenity"="fuel"](around.ev:{MATCH_M})->.fn;
+nwr["amenity"="fuel"]["fuel:electricity"="yes"](area.a)->.fe;
+nwr["shop"~"^(mall|supermarket|department_store)$"]["opening_hours"](around.ev:450)->.v;
+nwr["amenity"="parking"]["opening_hours"](around.ev:150)->.p;
+(.ev;.fn;.fe;.v;.p;);
 out center tags;"""
     body = urllib.parse.urlencode({"data": q}).encode()
     last = None
     vazios = 0
-    for tentativa in range(3):
+    for tentativa in range(2):
         for ep in OVERPASS:
             try:
                 d = http_json(ep, body)
@@ -95,7 +97,7 @@ out center tags;"""
                 last = e
                 print(f"  [{uf}] falha em {ep}: {e}", flush=True)
                 time.sleep(0 if os.environ.get("OVERPASS_URL") else 5)
-        time.sleep(0 if os.environ.get("OVERPASS_URL") else 20 * (tentativa + 1))
+        time.sleep(0 if os.environ.get("OVERPASS_URL") else 15)
     raise RuntimeError(f"{uf}: {last}")
 
 def coord(e):

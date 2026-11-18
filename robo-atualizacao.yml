@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: "59 2 * * *"   # 02:59 UTC = 23:59 em Brasília (todos os dias, 7 dias por semana)
   workflow_dispatch:         # botão "Run workflow" para atualizar na hora
+    inputs:
+      pular_varredura:
+        description: "Só publicar o site agora, sem varrer os estados"
+        type: boolean
+        default: false
   push:
     branches: [main]         # publica de novo sempre que você alterar o site
     paths:
@@ -27,7 +32,7 @@ concurrency:
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
 
@@ -36,6 +41,9 @@ jobs:
           python-version: "3.12"
 
       - name: Varrer os 27 estados e montar a base
+        if: ${{ !inputs.pular_varredura }}
+        continue-on-error: true      # se a varredura falhar, o site é publicado mesmo assim (com a base anterior)
+        timeout-minutes: 150
         env:
           OCM_KEY: ${{ secrets.OCM_KEY }}
         run: python scripts/atualizar_base.py
