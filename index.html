@@ -431,7 +431,7 @@ body{
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         Buscar postos
       </button>
-      <label class="radius" id="radiusBox" title="Raio usado nas buscas por CEP, bairro sem limite oficial e localização">
+      <label class="radius" id="radiusBox" title="CEP e localização: distância a partir do ponto. Bairro, cidade e estado: o limite inteiro + essa faixa ao redor">
         Raio de busca
         <select id="radius">
           <option value="2000">2 km</option>
@@ -710,9 +710,40 @@ function makeGeoTest(geo){
     return polys.some(p => { if(!pip(lon,lat,p[0])) return false; for(let k=1;k<p.length;k++) if(pip(lon,lat,p[k])) return false; return true; });
   };
 }
+function geoBox(geo){
+  const polys = geo.type==="Polygon" ? [geo.coordinates] : geo.coordinates;
+  let minX=180,minY=90,maxX=-180,maxY=-90;
+  polys.forEach(p => p[0].forEach(([x,y]) => { if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }));
+  return {minX,minY,maxX,maxY};
+}
+// dentro do limite OU até "margin" metros além dele (o raio escolhido vale também para bairro, cidade e estado)
+function makeAreaTest(geo, margin){
+  const inside = makeGeoTest(geo);
+  if(!margin) return inside;
+  const polys = geo.type==="Polygon" ? [geo.coordinates] : geo.coordinates;
+  const b = geoBox(geo), segs = [];
+  polys.forEach(p => p.forEach(ring => { for(let i=1;i<ring.length;i++) segs.push(ring[i-1][0], ring[i-1][1], ring[i][0], ring[i][1]); }));
+  const m2 = margin*margin, dLat = margin/110540;
+  return (lat, lon) => {
+    const kx = 111320*Math.cos(lat*Math.PI/180), dLon = margin/kx, ky = 110540;
+    if(lon<b.minX-dLon || lon>b.maxX+dLon || lat<b.minY-dLat || lat>b.maxY+dLat) return false;
+    if(inside(lat, lon)) return true;
+    for(let i=0;i<segs.length;i+=4){
+      const ax=(segs[i]-lon)*kx, ay=(segs[i+1]-lat)*ky, bx=(segs[i+2]-lon)*kx, by=(segs[i+3]-lat)*ky;
+      const dx=bx-ax, dy=by-ay, L=dx*dx+dy*dy;
+      let t = L ? -(ax*dx+ay*dy)/L : 0; t = t<0 ? 0 : t>1 ? 1 : t;
+      const px=ax+t*dx, py=ay+t*dy;
+      if(px*px+py*py <= m2) return true;
+    }
+    return false;
+  };
+}
 function filterBase(elements, scope){
-  if(scope.kind==="state") return elements.filter(e => e.uf===scope.uf);
-  if(scope.kind==="area" && scope.geo){ const t = makeGeoTest(scope.geo); return elements.filter(e => t(e.lat, e.lon)); }
+  if(scope.kind==="state"){
+    if(scope.geo){ const t = makeAreaTest(scope.geo, scope.margin||0); return elements.filter(e => e.uf===scope.uf || t(e.lat, e.lon)); }
+    return elements.filter(e => e.uf===scope.uf);
+  }
+  if(scope.kind==="area" && scope.geo){ const t = makeAreaTest(scope.geo, scope.margin||0); return elements.filter(e => t(e.lat, e.lon)); }
   const c = scope.center, r = scope.radius || 10000;
   return elements.filter(e => hav(c, e) <= r + (e.tags && e.tags.amenity==="fuel" ? MATCH_M : 0));
 }
@@ -762,7 +793,7 @@ function verifiedTags(v, t){
 }
 
 /* ================= Open Charge Map (2ª fonte) ================= */
-const OCM_KEY_DEFAULT = "";   // opcional: cole aqui a chave para valer para todos que abrirem o site
+const OCM_KEY_DEFAULT = "778a9de3-cf3f-4a12-aa10-88f5a96756db";   // chave do Open Charge Map da HOC: vale para todos que abrirem o site e o app
 function getOcmKey(){ let k = ""; try{ k = localStorage.getItem("rotavolt:ocm") || ""; }catch(_){} return (k || OCM_KEY_DEFAULT || "").trim(); }
 const UF_BY_NAME = {}; UFS.forEach(([s,n]) => { UF_BY_NAME[norm(n)] = s; });
 const OCM_SOCK = [["ccs","type2_combo"],["combo","type2_combo"],["chademo","chademo"],["tesla","tesla_supercharger"],["gb-t","gb_t"],["gbt","gb_t"],["type 2","type2"],["mennekes","type2"],["type 1","type1"],["j1772","type1"],["schuko","schuko"],["nbr","nbr14136"],["tomada","nbr14136"]];
@@ -808,13 +839,13 @@ function ocmToElements(pois){
 async function fetchOcm(scope, key){
   const u = new URL("https://api.openchargemap.io/v3/poi/");
   const p = {output:"json", countrycode:"BR", compact:"false", verbose:"false", maxresults:5000, key};
-  if(scope.kind==="state") p.maxresults = 30000;
-  else if(scope.kind==="area" && scope.geo){
-    const polys = scope.geo.type==="Polygon" ? [scope.geo.coordinates] : scope.geo.coordinates;
-    let minX=180,minY=90,maxX=-180,maxY=-90;
-    polys.forEach(pl => pl[0].forEach(([x,y]) => { if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }));
-    p.boundingbox = `(${maxY},${minX}),(${minY},${maxX})`;
-  } else {
+  if((scope.kind==="area" || scope.kind==="state") && scope.geo){
+    const b = geoBox(scope.geo), mg = scope.margin || 0;
+    const dLat = mg/110540, dLon = mg/(111320*Math.cos(((b.minY+b.maxY)/2)*Math.PI/180));
+    p.boundingbox = `(${(b.maxY+dLat).toFixed(5)},${(b.minX-dLon).toFixed(5)}),(${(b.minY-dLat).toFixed(5)},${(b.maxX+dLon).toFixed(5)})`;
+    if(scope.kind==="state") p.maxresults = 30000;
+  } else if(scope.kind==="state") p.maxresults = 30000;
+  else {
     p.latitude = scope.center.lat.toFixed(6); p.longitude = scope.center.lon.toFixed(6);
     p.distance = ((scope.radius || 10000)/1000).toFixed(1); p.distanceunit = "KM";
   }
@@ -916,7 +947,7 @@ function scopeFromNomi(hit, radius, label, sub){
   const center = {lat:+hit.lat, lon:+hit.lon};
   if(hit.osm_type==="relation"){
     const g = hit.geojson && /Polygon/.test(hit.geojson.type) ? hit.geojson : null;
-    return {kind:"area", areaId: 3600000000 + Number(hit.osm_id), center, label, sub, geo:g, radius};
+    return {kind:"area", areaId: 3600000000 + Number(hit.osm_id), center, label, sub, geo:g, radius, margin: g ? radius : 0};
   }
   return {kind:"around", center, radius, label, sub};
 }
@@ -964,7 +995,7 @@ async function resolveScope(){
     if(!hit) throw new Error(`Bairro "${bairro}" não encontrado. Informe também a cidade e o estado.`);
     const a = hit.address||{};
     const city = a.city||a.town||a.village||a.municipality||cidade;
-    const sub = [city, a.state].filter(Boolean).join(" · ") + (hit.osm_type!=="relation" ? ` · raio de ${radius/1000} km` : " · limite do bairro");
+    const sub = [city, a.state].filter(Boolean).join(" · ") + (hit.osm_type!=="relation" ? ` · raio de ${radius/1000} km` : ` · bairro + ${radius/1000} km ao redor`);
     return scopeFromNomi(hit, radius, bairro, sub);
   }
 
@@ -978,19 +1009,33 @@ async function resolveScope(){
     }
     if(!hit) throw new Error(`Cidade "${cidade}" não encontrada.`);
     const a = hit.address||{};
-    return scopeFromNomi(hit, Math.max(radius,15000), a.city||a.town||a.municipality||cidade, [a.state, "limite do município"].filter(Boolean).join(" · "));
+    const sc = scopeFromNomi(hit, radius, a.city||a.town||a.municipality||cidade, [a.state, `município + ${radius/1000} km ao redor`].filter(Boolean).join(" · "));
+    if(sc.kind==="around"){ sc.radius = Math.max(radius, 15000); sc.sub = [a.state, `raio de ${sc.radius/1000} km`].filter(Boolean).join(" · "); }   // cidade sem limite no mapa
+    return sc;
   }
 
   // estado
   const centers = {AC:[-9.0,-70.5],AL:[-9.6,-36.6],AP:[1.4,-51.8],AM:[-4.2,-63.0],BA:[-12.6,-41.7],CE:[-5.3,-39.3],DF:[-15.8,-47.9],ES:[-19.6,-40.5],GO:[-15.9,-49.6],MA:[-5.2,-45.3],MT:[-12.9,-55.9],MS:[-20.5,-54.8],MG:[-18.5,-44.6],PA:[-3.8,-52.5],PB:[-7.1,-36.7],PR:[-24.6,-51.6],PE:[-8.4,-37.9],PI:[-7.4,-42.7],RJ:[-22.3,-42.6],RN:[-5.8,-36.6],RS:[-29.7,-53.2],RO:[-10.9,-62.8],RR:[2.1,-61.4],SC:[-27.3,-50.4],SP:[-22.2,-48.7],SE:[-10.6,-37.4],TO:[-10.2,-48.3]};
   const c = centers[uf];
-  return {kind:"state", uf, center: c ? {lat:c[0], lon:c[1]} : null, mapHint: c, label: `${stateName} (${uf})`, sub:"estado inteiro"};
+  setStatus("Localizando o estado…","load");
+  let geo = null;
+  try{
+    const r = await nominatim("/search", {state:stateName, country:"Brasil", countrycodes:"br", limit:3, polygon_geojson:1, polygon_threshold:0.01});
+    const hit = (r||[]).find(x => x.osm_type==="relation" && x.geojson && /Polygon/.test(x.geojson.type));
+    if(hit) geo = hit.geojson;
+  }catch(_){ geo = null; }
+  return {kind:"state", uf, center: c ? {lat:c[0], lon:c[1]} : null, mapHint: c, label: `${stateName} (${uf})`,
+          sub: geo ? `estado inteiro + ${radius/1000} km além da divisa` : "estado inteiro", geo, radius, margin: geo ? radius : 0};
 }
 
 /* ================= Overpass query ================= */
 function buildQuery(scope){
   let pre = "", f;
   if(scope.kind==="state"){ pre = `area["ISO3166-2"="BR-${scope.uf}"]->.a;`; f = "(area.a)"; }
+  else if(scope.kind==="area" && scope.geo && scope.margin){
+    const b = geoBox(scope.geo), dLat = scope.margin/110540, dLon = scope.margin/(111320*Math.cos(((b.minY+b.maxY)/2)*Math.PI/180));
+    f = `(${(b.minY-dLat).toFixed(5)},${(b.minX-dLon).toFixed(5)},${(b.maxY+dLat).toFixed(5)},${(b.maxX+dLon).toFixed(5)})`;
+  }
   else if(scope.kind==="area"){ pre = `area(id:${scope.areaId})->.a;`; f = "(area.a)"; }
   else { f = `(around:${scope.radius},${scope.center.lat.toFixed(6)},${scope.center.lon.toFixed(6)})`; }
   const lim = scope.kind==="state" ? "[timeout:170][maxsize:536870912]" : scope.kind==="area" ? "[timeout:80][maxsize:268435456]" : "[timeout:35][maxsize:134217728]";
@@ -1543,8 +1588,20 @@ async function run(scopePromise, forceLive){
     let res, modo, extra = "";
     if(base){
       setStatus("Filtrando a base Brasil…", "load");
-      res = show(filterBase(base.elements, scope));
+      const baseEls = filterBase(base.elements, scope);
+      res = show(baseEls);
       modo = "base de " + fmtDataHora(base.meta.atualizado_em);
+      const key = getOcmKey();
+      if(key){
+        setStatus(summary(res, modo) + " Conferindo o Open Charge Map ao vivo…", "load");
+        try{
+          const live = await fetchOcm(scope, key);
+          if(myRun === runSeq){
+            res = show(mergeSources(baseEls.filter(e => e.src !== "ocm"), live));
+            modo += " + Open Charge Map ao vivo";
+          }
+        }catch(e){ extra = " · Open Charge Map ao vivo não respondeu agora (mostrando a base)."; }
+      }
     } else {
       const key = getOcmKey();
       const tmo = scope.kind==="state" ? 180000 : scope.kind==="area" ? 90000 : 45000;
@@ -1558,7 +1615,7 @@ async function run(scopePromise, forceLive){
       };
       tick(); const iv = setInterval(tick, 1000);
       const pOsm = overpass(buildQuery(scope), tmo, n => { srv = n; })
-        .then(d => { got.osm = d.elements || []; got.osmServer = d.__server; show(mergeSources(got.osm, got.ocm)); })
+        .then(d => { got.osm = d.elements || []; if(scope.kind==="area" && scope.geo && scope.margin) got.osm = filterBase(got.osm, scope); got.osmServer = d.__server; show(mergeSources(got.osm, got.ocm)); })
         .catch(e => { fail.osm = e; if(e.cancelled) throw e; });
       const pOcm = key ? fetchOcm(scope, key)
         .then(els => { got.ocm = els; if(!fail.cancel) show(mergeSources(got.osm, got.ocm)); })
@@ -1580,7 +1637,7 @@ async function run(scopePromise, forceLive){
     }
     const totR = res.ev.length + res.fu.length;
     const widen = {2000:5000, 5000:10000, 10000:20000, 20000:50000}[scope.radius];
-    if(scope.kind==="around" && totR < 3 && widen) extra += ` <button type="button" class="btn sm" id="widenBtn" data-r="${widen}" style="margin-left:6px">🔎 Ampliar para ${widen/1000} km</button>`;
+    if(totR < 3 && widen) extra += ` <button type="button" class="btn sm" id="widenBtn" data-r="${widen}" style="margin-left:6px">🔎 Ampliar para ${widen/1000} km</button>`;
     setStatus(summary(res, modo) + extra);
     if(!NATIVO){ try{ history.replaceState(null, "", shareUrl()); }catch(_){} }
     try{ localStorage.setItem("rotavolt:last", JSON.stringify({cep:$("#cep").value, bairro:$("#bairro").value, cidade:$("#cidade").value, uf:ufSel.value, r:$("#radius").value})); }catch(_){}
@@ -1597,6 +1654,13 @@ async function run(scopePromise, forceLive){
 }
 
 $("#form").addEventListener("submit", e => { e.preventDefault(); run(resolveScope()); });
+function rerunWithRadius(){
+  if(!lastScope || busy) return;
+  const r = +$("#radius").value;
+  if(lastScope.label === "Perto de você") run(Promise.resolve(Object.assign({}, lastScope, {radius:r, sub:`raio de ${r/1000} km`})));
+  else if(level()) run(resolveScope());
+}
+$("#radius").addEventListener("change", rerunWithRadius);
 
 $("#geo").addEventListener("click", () => {
   if(!navigator.geolocation){ setStatus("Seu navegador não permite localização. Use o CEP.", "err"); return; }
@@ -1611,7 +1675,7 @@ $("#geo").addEventListener("click", () => {
 document.addEventListener("click", e => {
   if(e.target.closest("#cancelBtn")){ cancelSearch(); return; }
   const wb = e.target.closest("#widenBtn");
-  if(wb && lastScope){ const r = +wb.dataset.r; $("#radius").value = String(r); run(Promise.resolve(Object.assign({}, lastScope, {radius:r, sub:(lastScope.sub||"").replace(/raio de [\d,.]+ km/, "raio de " + r/1000 + " km")})), false); return; }
+  if(wb && lastScope){ $("#radius").value = String(+wb.dataset.r); rerunWithRadius(); return; }
   if(e.target.closest("#retryBtn")){ if(lastScope) run(Promise.resolve(lastScope), true); return; }
   if(!e.target.closest("#demoBtn")) return;
   const c = {lat:-19.936, lon:-43.935};
@@ -1762,7 +1826,7 @@ function shareUrl(){
   const lv = level();
   if(lv==="cep" && cep) p.set("cep", cep);
   else { if(b) p.set("bairro", b); if(c) p.set("cidade", c); if(u) p.set("uf", u); }
-  if((lv==="cep" || lv==="bairro") && $("#radius").value!=="5000") p.set("raio", $("#radius").value);
+  if($("#radius").value!=="5000") p.set("raio", $("#radius").value);
   const q = p.toString();
   if(NATIVO) return (BASE_REMOTA || "https://openchargemap.org/") + (BASE_REMOTA && q ? "?" + q : "");
   return location.origin==="null" || location.protocol==="file:" ? location.href.split("?")[0] + (q?"?"+q:"") : location.origin + location.pathname + (q?"?"+q:"");

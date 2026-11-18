@@ -15,7 +15,7 @@ Regras de segurança:
 
 Só usa a biblioteca padrão do Python; se o pacote shapely estiver instalado, fica mais rápido.
 Variáveis de ambiente opcionais:
-  OCM_KEY        chave gratuita do Open Charge Map (openchargemap.org)
+  OCM_KEY        chave gratuita do Open Charge Map (se faltar, usa a gravada no index.html)
   OSM_GEOJSONSEQ arquivo do osmium export (-f geojsonseq -u type_id)
   OVERPASS_URL   força um servidor Overpass específico (testes)
   OCM_URL        força um endereço do Open Charge Map (testes)
@@ -422,6 +422,14 @@ def main():
     # Open Charge Map (opcional) — só entra o que não existe no OSM (raio de 60 m)
     ocm_add = 0
     key = os.environ.get("OCM_KEY", "").strip()
+    if not key:  # sem segredo no GitHub: usa a chave gravada no próprio site (index.html)
+        try:
+            import re
+            with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as f:
+                mk = re.search(r'const OCM_KEY_DEFAULT = "([A-Za-z0-9-]{8,80})"', f.read())
+            key = mk.group(1) if mk else ""
+        except Exception:
+            key = ""
     if key:
         try:
             pois = fetch_ocm(key)
