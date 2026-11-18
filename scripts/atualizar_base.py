@@ -389,9 +389,12 @@ def main():
     else:
         print("Mapa do Brasil não baixado: usando Overpass.", flush=True)
 
+    limite = time.time() + 60 * float(os.environ.get("OVERPASS_LIMITE_MIN") or 600)
     for i, uf in enumerate(UFS if fonte_osm == "overpass" else []):
         print(f"[{i+1}/27] {uf}…", flush=True)
         try:
+            if time.time() > limite:
+                raise RuntimeError("tempo do plano B esgotado")
             raw = overpass_uf(uf)
             novos = []
             for e in raw:

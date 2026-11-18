@@ -49,8 +49,11 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
           pip install -q shapely || echo "shapely indisponível: usa cálculo simples"
-          curl -fsSL --retry 3 --retry-delay 20 -o /tmp/brasil.osm.pbf \
-            https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
+          baixar(){ curl -fsSL --retry 4 --retry-all-errors --retry-delay 30 --connect-timeout 30 -o /tmp/brasil.osm.pbf "$1"; }
+          # Geofabrik (principal) e, se estiver fora do ar, o espelho da OpenStreetMap França
+          baixar https://download.geofabrik.de/south-america/brazil-latest.osm.pbf \
+            || baixar https://download.openstreetmap.fr/extracts/south-america/brazil-latest.osm.pbf \
+            || { sleep 120; baixar https://download.geofabrik.de/south-america/brazil-latest.osm.pbf; }
           ls -la /tmp/brasil.osm.pbf
           osmium tags-filter /tmp/brasil.osm.pbf \
             nwr/amenity=charging_station,fuel,parking nwr/shop=mall,supermarket,department_store \
@@ -66,6 +69,7 @@ jobs:
         env:
           OCM_KEY: ${{ secrets.OCM_KEY }}
           OSM_GEOJSONSEQ: /tmp/postos.geojsonseq
+          OVERPASS_LIMITE_MIN: "60"   # plano B (Overpass): no máximo 60 min; o que faltar fica com os dados de ontem
         run: python scripts/atualizar_base.py
 
       - name: Salvar a base no repositório (se mudou)
