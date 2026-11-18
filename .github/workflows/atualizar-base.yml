@@ -73,6 +73,7 @@ jobs:
         run: python scripts/atualizar_base.py
 
       - name: Salvar a base no repositório (se mudou)
+        continue-on-error: true      # mesmo se não conseguir salvar, o site é publicado com a base nova
         run: |
           git config user.name  "hocvoltbr-bot"
           git config user.email "hocvoltbr-bot@users.noreply.github.com"
@@ -81,7 +82,7 @@ jobs:
             echo "Sem mudanças hoje."
           else
             git commit -m "Base atualizada em $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')"
-            git push
+            for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
           fi
 
       - name: Separar só os arquivos do site
