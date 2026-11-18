@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Encontre eletropostos e postos de combustível com recarga elétrica por CEP, bairro, cidade ou estado em todo o Brasil.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HOCVOLTBR">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#06132b">
+<title>HOCVOLTBR — Eletropostos e postos com recarga</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --bg:#0a0d12; --bg2:#10151c; --card:#141a23; --card2:#18202b; --line:#232d3a; --line2:#2e3a4a;
+  --txt:#e9eef5; --mut:#93a1b3; --dim:#647286;
+  --ev:#2ef59a; --ev2:#14c47a; --evbg:rgba(46,245,154,.10);
+  --fuel:#ffb020; --fuel2:#e08c00; --fuelbg:rgba(255,176,32,.10);
+  --free:#38d9ff; --freebg:rgba(56,217,255,.12);
+  --h24:#2ef59a; --red:#ff5a6a;
+  --r:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}
+body{
+  font-family:Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color:var(--txt); background:var(--bg); line-height:1.45; -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 500px at 10% -10%, rgba(46,245,154,.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(255,176,32,.08), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.012) 0 2px, transparent 2px 6px);
+  background-attachment:fixed;
+  min-height:100vh;
+}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px}
+.cond{font-family:"Barlow Condensed",Barlow,sans-serif;letter-spacing:.02em}
+
+/* ---------- Header ---------- */
+header.top{padding:calc(26px + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px))) 0 8px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:54px;height:54px;flex:0 0 54px}
+.brand h1{margin:0;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-weight:800;font-size:34px;line-height:1;letter-spacing:.03em;text-transform:uppercase}
+.brand h1 span{color:var(--ev)}
+.brand p{margin:4px 0 0;color:var(--mut);font-size:15px}
+.racing{height:4px;margin-top:18px;border-radius:4px;
+  background:linear-gradient(90deg,var(--ev) 0 33%,transparent 33% 35%,var(--free) 35% 66%,transparent 66% 68%,var(--fuel) 68% 100%);opacity:.85}
+
+/* ---------- Base status strip ---------- */
+.basebar{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--mut);background:rgba(20,26,35,.7);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+.pill b{color:var(--txt);font-weight:700}
+.pill .led{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.pill.ok .led{background:var(--ev);box-shadow:0 0 8px var(--ev)}
+.pill.live .led{background:var(--free);box-shadow:0 0 8px var(--free)}
+.src{font-size:12px;color:var(--dim);margin-top:8px}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.btn.sm{min-height:38px;padding:7px 12px;font-size:14px;border-radius:999px}
+
+.cfg{margin-top:14px;background:var(--bg2);border:1px solid var(--line2);border-radius:14px;padding:14px 16px;font-size:14.5px;color:var(--mut)}
+.cfg b{color:var(--txt)}
+.cfg ol{margin:8px 0;padding-left:20px}
+.cfg a{color:var(--ev)}
+.cfg .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.cfg input{flex:1;min-width:220px;background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-size:16px;outline:0}
+.cfg input:focus{border-color:var(--ev)}
+.pill.btnlike{cursor:pointer}
+.pill.warn .led{background:var(--fuel);box-shadow:0 0 8px var(--fuel)}
+
+/* ---------- Search ---------- */
+.search{margin:22px 0 10px;background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:var(--shadow)}
+.search h2{margin:0 0 4px;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:.06em}
+.search .hint{margin:0 0 16px;color:var(--mut);font-size:14.5px}
+.fields{display:grid;grid-template-columns:1fr 1.3fr 1.3fr 1fr;gap:12px}
+.field{position:relative;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:10px 12px 8px;transition:border-color .2s, box-shadow .2s}
+.field:focus-within{border-color:var(--ev);box-shadow:0 0 0 3px rgba(46,245,154,.15)}
+.field.active{border-color:var(--ev)}
+.field label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mut)}
+.step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--line2);color:var(--txt);font-size:11.5px;font-weight:800}
+.field.active .step{background:var(--ev);color:#05110b}
+.field input,.field select{width:100%;border:0;outline:0;background:transparent;font-size:18px;font-weight:600;padding:6px 0 2px;min-height:34px}
+.field select{appearance:none;-webkit-appearance:none;cursor:pointer}
+.field select option{background:#141a23}
+.field input::placeholder{color:var(--dim);font-weight:500}
+.field .tag{position:absolute;right:10px;top:9px;font-size:10.5px;font-weight:800;letter-spacing:.08em;color:#05110b;background:var(--ev);border-radius:6px;padding:2px 6px;display:none}
+.field.active .tag{display:block}
+.row2{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+.radius{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:14px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:6px 10px}
+.radius select{background:transparent;border:0;outline:0;font-weight:700;color:var(--txt);cursor:pointer;font-size:16px}
+.radius select option{background:#141a23}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line2);background:var(--bg2);border-radius:12px;padding:11px 16px;min-height:46px;font-weight:700;cursor:pointer;transition:transform .08s, background .2s, border-color .2s;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--mut)}
+.btn:active{transform:scale(.98)}
+.btn.go{background:linear-gradient(135deg,var(--ev),var(--ev2));color:#04140c;border:0;font-size:17px;padding:12px 22px;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;box-shadow:0 6px 20px rgba(46,245,154,.25)}
+.btn.go:hover{filter:brightness(1.06)}
+.btn svg{width:18px;height:18px}
+.spacer{flex:1}
+.status{margin-top:12px;font-size:14.5px;color:var(--mut);min-height:22px;display:flex;align-items:center;gap:10px}
+.status.err{color:var(--red)}
+.spin{width:16px;height:16px;border:2px solid var(--line2);border-top-color:var(--ev);border-radius:50%;animation:sp .8s linear infinite;flex:0 0 16px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Results header ---------- */
+.reshead{display:none;margin:18px 0 12px;gap:14px;align-items:center;flex-wrap:wrap}
+.reshead.show{display:flex}
+.place{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--mut)}
+.place b{color:var(--txt);font-size:17px}
+.pin{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:var(--evbg);color:var(--ev)}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line2);background:var(--bg2);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:700;cursor:pointer;min-height:38px;display:inline-flex;align-items:center;gap:6px;user-select:none}
+.chip[aria-pressed="true"]{background:var(--txt);color:#0a0d12;border-color:var(--txt)}
+.qf{background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-width:200px;outline:0;font-size:16px}
+.qf:focus{border-color:var(--ev)}
+
+/* ---------- Map ---------- */
+.mapbox{display:none;margin:0 0 16px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.mapbox.show{display:block}
+.maptoggle{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-weight:700}
+.maptoggle .legend{display:flex;gap:14px;font-size:13px;color:var(--mut);font-weight:600}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+#map{height:360px;display:none;border-top:1px solid var(--line)}
+.mapbox.open #map{display:block}
+.leaflet-container{background:#0f141b;font-family:Barlow,sans-serif}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#141a23;color:var(--txt)}
+.leaflet-popup-content a{color:var(--ev)}
+
+/* ---------- Tabs (mobile) ---------- */
+.tabs{display:none;position:sticky;top:0;z-index:20;background:rgba(10,13,18,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:10px 0;margin:0 -20px 10px;padding-left:20px;padding-right:20px;border-bottom:1px solid var(--line)}
+.tabs .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.tabs button{border:0;background:transparent;border-radius:10px;padding:10px 6px;font-weight:800;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-size:16px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;color:var(--mut)}
+.tabs button.on.ev{background:var(--ev);color:#04140c}
+.tabs button.on.fu{background:var(--fuel);color:#1a1000}
+
+/* ---------- Columns ---------- */
+.cols{display:none;grid-template-columns:1fr 1fr;gap:20px;align-items:start;margin-bottom:30px}
+.cols.show{display:grid}
+.col{background:rgba(20,26,35,.55);border:1px solid var(--line);border-radius:20px;padding:14px;min-width:0}
+.colhead{display:flex;align-items:center;gap:12px;padding:6px 6px 14px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.colicon{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;flex:0 0 44px}
+.col.ev .colicon{background:var(--evbg);color:var(--ev);box-shadow:inset 0 0 0 1px rgba(46,245,154,.35)}
+.col.fu .colicon{background:var(--fuelbg);color:var(--fuel);box-shadow:inset 0 0 0 1px rgba(255,176,32,.35)}
+.colhead h3{margin:0;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:.05em;line-height:1.1}
+.colhead .order{font-size:13px;color:var(--mut);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.colhead .order i{font-style:normal;color:var(--dim)}
+.count{margin-left:auto;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-weight:800;font-size:30px;line-height:1}
+.col.ev .count{color:var(--ev)} .col.fu .count{color:var(--fuel)}
+.group{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:16px 6px 8px;display:flex;align-items:center;gap:8px}
+.group::after{content:"";flex:1;height:1px;background:var(--line)}
+.list{display:flex;flex-direction:column;gap:12px}
+
+/* ---------- Cards ---------- */
+.card{position:relative;background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px 18px;overflow:hidden;transition:border-color .2s, transform .15s}
+.card:hover{border-color:var(--line2)}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+.col.ev .card::before{background:var(--ev)}
+.col.fu .card::before{background:linear-gradient(180deg,var(--fuel) 0 60%,var(--ev) 60% 100%)}
+.card.flash{animation:fl 1.2s ease}
+@keyframes fl{0%{box-shadow:0 0 0 3px var(--ev)}100%{box-shadow:0 0 0 0 transparent}}
+.ctop{display:flex;gap:10px;align-items:flex-start}
+.cname{font-weight:700;font-size:17px;line-height:1.25;margin:0;flex:1;min-width:0;word-wrap:break-word}
+.cname small{display:block;color:var(--mut);font-weight:500;font-size:13.5px;margin-top:2px}
+.dist{font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-weight:700;font-size:18px;white-space:nowrap;color:var(--txt);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:2px 8px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
+.b{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:7px;padding:4px 8px;line-height:1;display:inline-flex;align-items:center;gap:5px}
+.b.h24{background:var(--h24);color:#04140c}
+.b.paid{background:var(--fuelbg);color:var(--fuel);box-shadow:inset 0 0 0 1px rgba(255,176,32,.45)}
+.b.free{background:var(--freebg);color:var(--free);box-shadow:inset 0 0 0 1px rgba(56,217,255,.45)}
+.b.unk{background:rgba(147,161,179,.10);color:var(--mut);box-shadow:inset 0 0 0 1px rgba(147,161,179,.3)}
+.b.fast{background:rgba(255,90,106,.12);color:#ff8a96;box-shadow:inset 0 0 0 1px rgba(255,90,106,.4)}
+.b.closed{background:rgba(255,90,106,.12);color:#ff8a96;box-shadow:inset 0 0 0 1px rgba(255,90,106,.4)}
+.b.pub{background:rgba(46,245,154,.08);color:var(--ev);box-shadow:inset 0 0 0 1px rgba(46,245,154,.3)}
+.b.ver{background:rgba(56,217,255,.12);color:var(--free);box-shadow:inset 0 0 0 1px rgba(56,217,255,.45)}
+.b.cust{background:rgba(147,161,179,.10);color:var(--txt);box-shadow:inset 0 0 0 1px rgba(147,161,179,.3)}
+.meta{display:grid;gap:6px;font-size:14px;color:var(--mut)}
+.meta .ln{display:flex;gap:8px;align-items:flex-start}
+.meta .ln svg{width:16px;height:16px;flex:0 0 16px;margin-top:2px;color:var(--dim)}
+.meta .ln span{min-width:0;word-wrap:break-word}
+.meta b{color:var(--txt);font-weight:600}
+.plugs{display:flex;flex-wrap:wrap;gap:6px}
+.plug{font-size:12.5px;font-weight:700;border:1px solid var(--line2);border-radius:8px;padding:3px 7px;color:var(--txt);background:var(--bg2)}
+.fuels{display:flex;flex-wrap:wrap;gap:6px}
+.fuelc{font-size:12.5px;font-weight:800;border-radius:8px;padding:3px 8px}
+.fuelc.g{background:rgba(255,90,106,.12);color:#ff8a96}
+.fuelc.e{background:rgba(46,245,154,.10);color:var(--ev)}
+.fuelc.d{background:rgba(255,176,32,.12);color:var(--fuel)}
+.fuelc.n{background:rgba(56,217,255,.10);color:var(--free)}
+.fuelc.u{background:rgba(147,161,179,.10);color:var(--mut)}
+.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.act{flex:1;min-width:92px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 10px;min-height:42px;border-radius:11px;font-weight:700;font-size:14px;text-decoration:none;border:1px solid var(--line2);background:var(--bg2);cursor:pointer}
+.act svg{width:17px;height:17px}
+.act.gm{background:#e9eef5;color:#0a0d12;border-color:#e9eef5}
+.act:hover{filter:brightness(1.1)}
+.more{width:100%;margin-top:12px}
+.empty{padding:26px 14px;text-align:center;color:var(--mut);font-size:15px;border:1px dashed var(--line2);border-radius:var(--r)}
+.empty b{display:block;color:var(--txt);font-size:16px;margin-bottom:4px}
+
+/* skeleton */
+.sk{height:150px;border-radius:var(--r);background:linear-gradient(90deg,var(--card) 0%,var(--card2) 50%,var(--card) 100%);background-size:200% 100%;animation:sh 1.2s linear infinite;border:1px solid var(--line)}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* intro */
+.intro{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0 30px}
+.intro.hide{display:none}
+.tip{background:rgba(20,26,35,.6);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.tip h4{margin:0 0 6px;font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-size:19px;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+.tip p{margin:0;color:var(--mut);font-size:14.5px}
+.tip ol{margin:6px 0 0;padding-left:18px;color:var(--mut);font-size:14.5px}
+
+footer{border-top:1px solid var(--line);padding:18px 0 34px;color:var(--dim);font-size:13px}
+footer a{color:var(--mut)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1024px){
+  .fields{grid-template-columns:1fr 1fr}
+}
+@media (max-width:860px){
+  .tabs.show{display:block}
+  .cols.show{grid-template-columns:1fr}
+  .cols .col{display:none}
+  .cols .col.on{display:block}
+  .intro{grid-template-columns:1fr}
+  #map{height:300px}
+}
+@media (max-width:560px){
+  .wrap{padding:0 14px}
+  .tabs{margin:0 -14px 10px;padding-left:14px;padding-right:14px}
+  .brand h1{font-size:28px}
+  .logo{width:46px;height:46px;flex-basis:46px}
+  .search{padding:16px;border-radius:18px}
+  .fields{grid-template-columns:1fr;gap:10px}
+  .row2 .btn{flex:1}
+  .row2 .btn.go{flex-basis:100%;order:-1}
+  .spacer{display:none}
+  .radius{flex-basis:100%;justify-content:space-between}
+  .qf{min-width:0;width:100%}
+  .filters{width:100%}
+  .col{padding:10px;border-radius:16px}
+  .count{font-size:26px}
+  .act{min-width:0;padding:9px 6px}
+  .gmw{display:none}
+  .maptoggle .legend > span:not(#mapArrow){display:none}
+}
+@media (max-width:400px){ .colhead h3{font-size:19px} .colhead{gap:10px} .colicon{width:38px;height:38px;flex-basis:38px} .tabs button{font-size:14.5px} }
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ====== Tema azul-marinho + dourado ====== */
+:root{
+  --bg:#06132b; --bg2:#0a1d3f; --card:#0d2450; --card2:#112b5d; --line:#1d3a6e; --line2:#2a4c86;
+  --txt:#f5f8fd; --mut:#b2c1dc; --dim:#8094b8;
+  --gold:#e6b94f; --gold2:#c99a2e; --goldbg:rgba(230,185,79,.12);
+  --ev:#e6b94f; --ev2:#c99a2e; --evbg:rgba(230,185,79,.12);
+  --fuel:#ff9b48; --fuelbg:rgba(255,155,72,.12);
+  --free:#5fd4ff; --freebg:rgba(95,212,255,.12);
+  --h24:#3ee08f;
+}
+body{
+  background-color:var(--bg);
+  background-image:
+    radial-gradient(1100px 520px at 0% -10%, rgba(230,185,79,.10), transparent 60%),
+    radial-gradient(900px 520px at 100% 0%, rgba(95,212,255,.08), transparent 60%),
+    linear-gradient(180deg,#06132b 0%,#081a3a 60%,#06132b 100%);
+}
+.racing{background:linear-gradient(90deg,var(--gold) 0 33%,transparent 33% 35%,var(--free) 35% 66%,transparent 66% 68%,var(--fuel) 68% 100%)}
+.brand h1 span{color:var(--gold)}
+.brand h1 em.br{font-style:normal;color:#3ee08f}
+.search h2,.tip h4{color:var(--txt)}
+.hint b,.tip b{color:var(--gold)}
+.btn.go{background:linear-gradient(135deg,#f2cc6b,var(--gold2));color:#1b1200;box-shadow:0 6px 20px rgba(230,185,79,.28)}
+.field:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px rgba(230,185,79,.18)}
+.field.active{border-color:var(--gold)}
+.field.active .step,.field .tag{background:var(--gold);color:#1b1200}
+.qf:focus,.cfg input:focus{border-color:var(--gold)}
+.chip[aria-pressed="true"]{background:var(--gold);color:#1b1200;border-color:var(--gold)}
+.pill.ok .led{background:var(--h24);box-shadow:0 0 8px var(--h24)}
+.place b{color:var(--gold)}
+.pin{background:var(--goldbg);color:var(--gold)}
+.cfg a{color:var(--gold)}
+.b.h24{background:var(--h24);color:#04210f}
+.b.pub{background:rgba(62,224,143,.10);color:var(--h24);box-shadow:inset 0 0 0 1px rgba(62,224,143,.35)}
+.spin{border-top-color:var(--gold)}
+
+/* ====== Listas recolhíveis e compactas ====== */
+.cols.show{display:flex;flex-direction:column;gap:14px;align-items:stretch}
+.cols .col,.cols .col.on{display:block;padding:0;overflow:hidden;background:rgba(13,36,80,.65);border:1px solid var(--line);border-radius:18px}
+.colhead{width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;margin:0;border:0;border-radius:0;background:transparent;text-align:left;cursor:pointer;color:var(--txt)}
+.colhead:hover{background:rgba(255,255,255,.03)}
+.coltxt{display:flex;flex-direction:column;min-width:0;flex:1}
+.coltxt .h3{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:800;font-size:21px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt)}
+.coltxt .order{font-size:13px;color:var(--mut);margin-top:2px}
+.coltxt .order b{color:var(--gold)}
+.col .colicon{background:var(--goldbg)!important;color:var(--gold)!important;box-shadow:inset 0 0 0 1px rgba(230,185,79,.35)!important}
+.col.fu .colicon{background:var(--fuelbg)!important;color:var(--fuel)!important;box-shadow:inset 0 0 0 1px rgba(255,155,72,.35)!important}
+.col .count{margin-left:0;color:var(--gold)!important}
+.chev{flex:0 0 auto;font-size:13px;font-weight:700;color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:999px;padding:7px 12px;white-space:nowrap}
+.chev b{display:inline-block;transition:transform .2s;color:var(--gold)}
+.col.open .chev b{transform:rotate(180deg)}
+.col .body{display:none;padding:2px 14px 16px;border-top:1px solid var(--line)}
+.col.open .body{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:12px}
+.tile{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;color:var(--txt);background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-height:66px;transition:border-color .15s, transform .1s}
+.tile:hover{border-color:var(--gold)}
+.tile:active{transform:scale(.99)}
+.tile .km{flex:0 0 64px;text-align:center;background:var(--bg2);border:1px solid var(--line2);border-radius:11px;padding:7px 2px 6px;line-height:1}
+.tile .km b{display:block;font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:800;font-size:19px;color:var(--gold)}
+.tile .km small{display:block;font-size:10px;color:var(--mut);font-weight:700;letter-spacing:.06em;margin-top:3px;text-transform:uppercase}
+.tile .info{flex:1;min-width:0}
+.tile .nm{font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .mini{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.mini span{font-size:11.5px;font-weight:800;letter-spacing:.02em;border-radius:6px;padding:2px 7px;line-height:1.5}
+.mini .ok{background:rgba(62,224,143,.14);color:var(--h24)}
+.mini .no{background:rgba(255,90,106,.14);color:#ff8a96}
+.mini .gold{background:var(--goldbg);color:var(--gold)}
+.mini .cy{background:var(--freebg);color:var(--free)}
+.mini .gr{background:rgba(178,193,220,.12);color:var(--mut)}
+.tile .go{flex:0 0 auto;color:var(--gold);font-size:20px;font-weight:700}
+.rank{font-size:13px;color:var(--mut);margin:12px 2px 0}
+.rank b{color:var(--gold)}
+
+/* ====== Janela de detalhes ====== */
+.modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal[hidden]{display:none}
+.backdrop{position:absolute;inset:0;background:rgba(3,10,25,.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.sheet{position:relative;width:min(640px,100%);max-height:calc(100vh - 40px);overflow:auto;background:var(--bg2);border:1px solid var(--line2);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.5);-webkit-overflow-scrolling:touch}
+.sheethead{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--line)}
+.sheethead span{font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);font-size:15px}
+.xbtn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line2);background:var(--card);font-size:18px;cursor:pointer;color:var(--txt)}
+#modalBody{padding:14px}
+#modalBody .card{border:0;background:transparent;padding:4px 4px 4px 14px}
+.card.ev::before{background:var(--gold)!important}
+.card.fu::before{background:linear-gradient(180deg,var(--fuel) 0 60%,var(--gold) 60% 100%)!important}
+.cname{color:var(--txt);font-size:20px}
+.dist{color:var(--gold)}
+.meta b{color:var(--txt)}
+.act.gm{background:var(--gold);border-color:var(--gold);color:#1b1200}
+
+/* ====== Autocompletar ====== */
+.field{position:relative}
+.ac{position:absolute;left:-1px;right:-1px;top:calc(100% + 6px);z-index:50;background:var(--bg2);border:1px solid var(--gold);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.45);max-height:300px;overflow:auto}
+.ac[hidden]{display:none}
+.ac button{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:var(--txt);padding:11px 14px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--line)}
+.ac button:last-child{border-bottom:0}
+.ac button:hover,.ac button.hl{background:var(--goldbg)}
+.ac button small{color:var(--gold);font-weight:700;white-space:nowrap}
+.ac .acmsg{padding:11px 14px;color:var(--mut);font-size:14px}
+.tabs,.tabs.show{display:none!important}
+@media (max-width:860px){
+  .cols.show{display:flex}
+}
+@media (max-width:560px){
+  .tiles{grid-template-columns:1fr}
+  .chev{padding:8px 11px;font-size:14px}
+  .chev .cl{display:none}
+  .colhead{gap:10px;padding:12px}
+  .coltxt .h3{font-size:18px}
+  .modal{padding:0;align-items:flex-end}
+  .sheet{width:100%;max-height:92vh;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fd4ff"/><stop offset="1" stop-color="#e6b94f"/></linearGradient></defs>
+        <circle cx="32" cy="34" r="25" fill="none" stroke="#232d3a" stroke-width="6"/>
+        <path d="M11.5 46 A25 25 0 1 1 52.5 46" fill="none" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" stroke-dasharray="118 200"/>
+        <path d="M35 14 L22 37 h9 l-3 15 L42 29 h-9 z" fill="#f2cc6b"/>
+      </svg>
+      <div>
+        <h1 class="cond">HOC<span>VOLT</span><em class="br">BR</em></h1>
+        <p>Eletropostos e postos de combustível com recarga elétrica, por CEP, bairro, cidade ou estado</p>
+      </div>
+    </div>
+    <div class="racing"></div>
+    <div class="basebar" id="basebar">
+      <span class="pill" id="pillBase"><span class="led"></span><span id="pillBaseTxt">Verificando base de dados…</span></span>
+      <span class="pill" id="pillCount" hidden></span>
+      <span class="pill btnlike" id="pillOcm" role="button" tabindex="0"><span class="led"></span><span id="pillOcmTxt">Open Charge Map</span></span>
+      <span class="pill"><span class="led" style="background:var(--fuel)"></span>Atualização automática: <b>todo dia às 23h59</b></span>
+    </div>
+  </header>
+
+  <!-- SEARCH -->
+  <form class="search" id="form" autocomplete="off" novalidate>
+    <h2 class="cond">Onde você vai recarregar?</h2>
+    <p class="hint">Preencha um ou mais campos. A busca usa o <b>primeiro campo preenchido</b>, nesta ordem: <b>1 CEP</b> → <b>2 Bairro</b> → <b>3 Cidade</b> → <b>4 Estado</b>. Os campos seguintes servem para deixar o resultado mais preciso.</p>
+    <div class="fields">
+      <div class="field" data-k="cep">
+        <label for="cep"><span class="step">1</span>CEP</label>
+        <input id="cep" inputmode="numeric" maxlength="9" placeholder="00000-000">
+        <span class="tag">BUSCA POR CEP</span>
+      </div>
+      <div class="field" data-k="bairro">
+        <label for="bairro"><span class="step">2</span>Bairro</label>
+        <input id="bairro" placeholder="Ex.: Tijuca" autocomplete="off" aria-autocomplete="list">
+        <div class="ac" id="acBairro" hidden></div>
+        <span class="tag">BUSCA POR BAIRRO</span>
+      </div>
+      <div class="field" data-k="cidade">
+        <label for="cidade"><span class="step">3</span>Cidade</label>
+        <input id="cidade" placeholder="Ex.: Rio de Janeiro" autocomplete="off" aria-autocomplete="list">
+        <div class="ac" id="acCidade" hidden></div><datalist id="dlCidades"></datalist>
+        <span class="tag">BUSCA POR CIDADE</span>
+      </div>
+      <div class="field" data-k="uf">
+        <label for="uf"><span class="step">4</span>Estado</label>
+        <select id="uf">
+          <option value="">Selecione</option>
+        </select>
+        <span class="tag">BUSCA POR ESTADO</span>
+      </div>
+    </div>
+    <div class="row2">
+      <button type="submit" class="btn go" id="go">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Buscar postos
+      </button>
+      <label class="radius" id="radiusBox" title="Raio usado nas buscas por CEP, bairro sem limite oficial e localização">
+        Raio de busca
+        <select id="radius">
+          <option value="2000">2 km</option>
+          <option value="5000" selected>5 km</option>
+          <option value="10000">10 km</option>
+          <option value="20000">20 km</option>
+          <option value="50000">50 km</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="geo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+        Minha localização
+      </button>
+      <button type="button" class="btn" id="clear">Limpar</button>
+      <button type="button" class="btn" id="cfgBtn" aria-expanded="false">⚙️ Fontes de dados</button>
+    </div>
+    <div class="cfg" id="cfg" hidden>
+      <b>Fontes de dados.</b> O site junta duas bases abertas de eletropostos: o <b>OpenStreetMap</b>, que é usado sempre, e o <b>Open Charge Map</b>, que precisa de uma chave gratuita. Sem a chave, várias cidades aparecem com poucos ou nenhum posto. No Rio de Janeiro, por exemplo, o OpenStreetMap tem só 1 eletroposto cadastrado.
+      <ol>
+        <li>Entre em <a href="https://openchargemap.org" target="_blank" rel="noopener">openchargemap.org</a> e crie uma conta grátis (botão <b>Sign In</b>).</li>
+        <li>Abra <b>My Profile → My API Keys</b> e clique para gerar uma chave.</li>
+        <li>Cole a chave abaixo e clique em Salvar. Ela fica guardada neste navegador.</li>
+      </ol>
+      <div class="row">
+        <input id="ocmKey" placeholder="Cole aqui a chave do Open Charge Map" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn sm" id="ocmSave">Salvar</button>
+        <button type="button" class="btn sm" id="ocmClear">Remover</button>
+      </div>
+      <div id="ocmMsg" style="margin-top:6px"></div>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </form>
+
+  <!-- INTRO -->
+  <section class="intro" id="intro">
+    <div class="tip">
+      <h4 class="cond"><span style="color:var(--gold)">⚡</span> Lista 1 · Só eletroposto</h4>
+      <p>Pontos exclusivos de recarga elétrica, listados <b>do mais próximo ao mais distante</b>. Filtros rápidos: 24h, pago, grátis, aberto agora.</p>
+      <p style="margin-top:6px">Somente locais de <b>acesso público</b>: condomínios, residenciais e pontos privados ficam de fora.</p>
+    </div>
+    <div class="tip">
+      <h4 class="cond"><span style="color:var(--gold)">⛽</span> Lista 2 · Combustível + recarga</h4>
+      <p>Postos com gasolina, etanol ou diesel <b>e</b> recarga elétrica no local, também <b>do mais próximo ao mais distante</b>.</p>
+    </div>
+    <div class="tip">
+      <h4 class="cond"><span style="color:var(--free)">📍</span> Um toque e você está na rota</h4>
+      <p>Toque num posto para ver horário, preço e conectores, e abrir no <b>Google Maps</b>, traçar a <b>rota</b> ou ir pelo <b>Waze</b>. Funciona no PC, Mac, iPhone, iPad, Galaxy e Pixel.</p>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <div class="reshead" id="reshead">
+    <div class="place"><span class="pin"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></span><div><b id="placeName">—</b><div id="placeSub"></div></div></div>
+    <span class="spacer"></span>
+    <div class="filters" id="filters">
+      <button type="button" class="chip" data-f="all" aria-pressed="true">Todos</button>
+      <button type="button" class="chip" data-f="h24" aria-pressed="false">24h</button>
+      <button type="button" class="chip" data-f="paid" aria-pressed="false">Pago</button>
+      <button type="button" class="chip" data-f="free" aria-pressed="false">Grátis</button>
+      <button type="button" class="chip" data-f="open" aria-pressed="false">🟢 Aberto agora</button>
+      <button type="button" class="chip" data-f="fast" aria-pressed="false">⚡ Rápido (DC)</button>
+    </div>
+    <input class="qf" id="qf" placeholder="Filtrar por nome, rede, rua…" aria-label="Filtrar resultados">
+    <div class="tools">
+      <button type="button" class="btn sm" id="share">🔗 Copiar link desta busca</button>
+      <button type="button" class="btn sm" id="live" title="Consulta o mapa colaborativo agora mesmo, sem esperar a atualização das 23h59">🔄 Conferir ao vivo agora</button>
+    </div>
+  </div>
+
+  <div class="mapbox" id="mapbox">
+    <div class="maptoggle" id="maptoggle" role="button" tabindex="0" aria-expanded="false">
+      <span>🗺️ Ver todos no mapa</span>
+      <span class="legend"><span><span class="dot" style="background:var(--ev)"></span>Só elétrico</span><span><span class="dot" style="background:var(--fuel)"></span>Combustível + recarga</span><span id="mapArrow">▾</span></span>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <div class="seg">
+      <button type="button" class="ev on" data-t="ev">⚡ Elétrico <span id="tcEv"></span></button>
+      <button type="button" class="fu" data-t="fu">⛽ Comb. + Recarga <span id="tcFu"></span></button>
+    </div>
+  </nav>
+
+  <main class="cols" id="cols">
+    <section class="col ev" id="colEv">
+      <button type="button" class="colhead" data-toggle="colEv" aria-expanded="false">
+        <span class="colicon"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+        <span class="coltxt">
+          <span class="h3">Só eletroposto</span>
+          <span class="order" id="subEv">Do mais próximo ao mais distante</span>
+        </span>
+        <span class="count" id="cntEv">0</span>
+        <span class="chev"><span class="cl">Ver lista </span><b>▾</b></span>
+      </button>
+      <div class="body"><div id="listEv"></div></div>
+    </section>
+    <section class="col fu" id="colFu">
+      <button type="button" class="colhead" data-toggle="colFu" aria-expanded="false">
+        <span class="colicon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M6 8h7"/><path d="M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="m10.5 11-2 3h3l-2 3" stroke-width="1.6"/></svg></span>
+        <span class="coltxt">
+          <span class="h3">Combustível + recarga</span>
+          <span class="order" id="subFu">Do mais próximo ao mais distante</span>
+        </span>
+        <span class="count" id="cntFu">0</span>
+        <span class="chev"><span class="cl">Ver lista </span><b>▾</b></span>
+      </button>
+      <div class="body"><div id="listFu"></div></div>
+    </section>
+  </main>
+
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="backdrop" data-close="1"></div>
+    <div class="sheet">
+      <div class="sheethead"><span id="modalTitle" class="cond">Detalhes do posto</span><button type="button" class="xbtn" data-close="1" aria-label="Fechar">✕</button></div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <footer>
+    Dados de postos: © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (ODbL) e <a href="https://openchargemap.org" target="_blank" rel="noopener">Open Charge Map</a> (CC BY-SA) · Municípios: IBGE · CEP: <a href="https://viacep.com.br" target="_blank" rel="noopener">ViaCEP</a> · Localização: Nominatim · Mapa: © Esri / OpenStreetMap.<br>
+    Base própria atualizada automaticamente todos os dias às 23h59 (horário de Brasília); o botão “Conferir ao vivo agora” consulta o mapa no momento.<br>
+    <a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a> · Horários, tarifas e disponibilidade são informados pela comunidade e podem mudar. Confirme no aplicativo da rede de recarga antes de sair.
+  </footer>
+</div>
+
+<noscript><p class="wrap" style="color:#ff5a6a">Ative o JavaScript do navegador para usar o HOCVOLTBR.</p></noscript>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+"use strict";
+
+/* ================= Config ================= */
+const UFS = [["AC","Acre"],["AL","Alagoas"],["AP","Amapá"],["AM","Amazonas"],["BA","Bahia"],["CE","Ceará"],["DF","Distrito Federal"],["ES","Espírito Santo"],["GO","Goiás"],["MA","Maranhão"],["MT","Mato Grosso"],["MS","Mato Grosso do Sul"],["MG","Minas Gerais"],["PA","Pará"],["PB","Paraíba"],["PR","Paraná"],["PE","Pernambuco"],["PI","Piauí"],["RJ","Rio de Janeiro"],["RN","Rio Grande do Norte"],["RS","Rio Grande do Sul"],["RO","Rondônia"],["RR","Roraima"],["SC","Santa Catarina"],["SP","São Paulo"],["SE","Sergipe"],["TO","Tocantins"]];
+const UF_NAME = Object.fromEntries(UFS);
+const OVERPASS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter"
+];
+const NOMINATIM = "https://nominatim.openstreetmap.org";
+const MATCH_M = 120;      // carregador a até 120 m de um posto de combustível = mesmo local
+const PAGE = 30;
+
+/* ================= Helpers ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+function hav(a, b){
+  const R=6371000, toR=x=>x*Math.PI/180;
+  const dLa=toR(b.lat-a.lat), dLo=toR(b.lon-a.lon);
+  const h=Math.sin(dLa/2)**2+Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function fmtDist(m){ if(m==null) return ""; return m<1000 ? Math.round(m/10)*10+" m" : (m/1000).toFixed(m<10000?1:0).replace(".",",")+" km"; }
+
+async function fetchJSON(url, opts={}, timeoutMs=30000){
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), timeoutMs);
+  try{
+    const r = await fetch(url, {...opts, signal: ctl.signal});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+let lastNomi = 0;
+async function nominatim(path, params){
+  const wait = 1100 - (Date.now()-lastNomi); if(wait>0) await sleep(wait);
+  lastNomi = Date.now();
+  const u = new URL(NOMINATIM + path);
+  Object.entries({format:"jsonv2","accept-language":"pt-BR",...params}).forEach(([k,v])=>{ if(v!=null && v!=="") u.searchParams.set(k,v); });
+  return fetchJSON(u.toString(), {}, 20000);
+}
+
+let currentRace = null;
+function cancelSearch(){ runSeq++; if(currentRace) currentRace.cancel(); }
+function overpass(query, timeoutMs, onProgress){
+  // Dispara os servidores escalonados (0s, 4s, 8s) e usa o primeiro que trouxer postos.
+  // Resposta "vazia" NÃO é aceita de imediato: precisa ser confirmada por outro servidor
+  // (servidor desatualizado ou parcial não pode esconder postos que existem).
+  return new Promise((resolve, reject) => {
+    const ctls = [], timers = [], errors = [], empties = [];
+    let done = false, started = 0, finished = 0, next = 0;
+    const finish = () => { done = true; timers.forEach(clearTimeout); ctls.forEach(c => { try{ c.abort(); }catch(_){} }); currentRace = null; };
+    currentRace = { cancel(){ if(done) return; finish(); const e = new Error("Busca cancelada."); e.cancelled = true; reject(e); } };
+    const launch = () => {
+      if(done || next >= OVERPASS.length) return;
+      const i = next++, ep = OVERPASS[i];
+      started++; if(onProgress) onProgress(started, ep);
+      const ctl = new AbortController(); ctls.push(ctl);
+      const t = setTimeout(() => ctl.abort(), timeoutMs);
+      fetch(ep, {method:"POST", body:new URLSearchParams({data:query}), signal:ctl.signal})
+        .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(j => {
+          if(!j || !Array.isArray(j.elements)) throw new Error("resposta inválida");
+          if(j.remark && /error|timed out|memory|rate/i.test(j.remark) && !j.elements.length) throw new Error(j.remark);
+          j.__server = new URL(ep).hostname;
+          if(j.elements.length){ if(!done){ finish(); resolve(j); } return; }
+          empties.push(j);
+          if(empties.length >= 2 && !done){ finish(); resolve(j); return; }   // dois servidores confirmam: realmente vazio
+          launch();                                                          // pede confirmação a outro servidor já
+        })
+        .catch(e => { errors.push(e); launch(); })
+        .finally(() => {
+          clearTimeout(t); finished++;
+          if(!done && finished === OVERPASS.length){
+            finish();
+            if(empties.length){ resolve(empties[0]); return; }
+            const allTimeout = errors.every(e => e.name === "AbortError");
+            const e = new Error(allTimeout ? "Os servidores de mapa estão lentos agora e não responderam a tempo." : "Os servidores de mapa não responderam.");
+            e.mapDown = true; reject(e);
+          }
+        });
+    };
+    launch();
+    for(let k = 1; k < OVERPASS.length; k++) timers.push(setTimeout(launch, k * 4000));
+  });
+}
+
+/* ================= Base diária (data/brasil.json) ================= */
+const today = (() => { const d = new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0"); })();
+const BASE_REMOTA = "";   // endereço do site publicado (ex.: https://usuario.github.io/hocvoltbr/). O robô do app preenche sozinho.
+const NATIVO = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const canUseBase = location.protocol === "http:" || location.protocol === "https:";
+let basePromise = null, baseMeta = null;
+function fmtDataHora(iso){
+  try{ const d = new Date(iso); return d.toLocaleDateString("pt-BR",{timeZone:"America/Sao_Paulo"}) + " às " + d.toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}); }
+  catch(_){ return iso; }
+}
+function getBase(){
+  if(!canUseBase) return Promise.resolve(null);
+  if(!basePromise){
+    const ok = d => (d && Array.isArray(d.elements) && d.elements.length) ? d : null;
+    const local = () => fetchJSON("data/brasil.json?d="+today, {cache:"no-cache"}, 60000).then(ok).catch(() => null);
+    // no app: tenta a base mais nova publicada no site (atualizada às 23h59); se não der, usa a que veio dentro do app
+    basePromise = (NATIVO && BASE_REMOTA)
+      ? fetchJSON(BASE_REMOTA + "data/brasil.json?d="+today, {cache:"no-cache"}, 60000).then(ok).catch(() => null).then(d => d || local())
+      : local();
+  }
+  return basePromise;
+}
+async function loadMeta(){
+  const pill = $("#pillBase"), txt = $("#pillBaseTxt");
+  if(!canUseBase){ pill.className="pill live"; txt.innerHTML = "Modo <b>ao vivo</b>: consulta as bases na hora"; return; }
+  try{
+    let m = null;
+    if(NATIVO && BASE_REMOTA){ try{ m = await fetchJSON(BASE_REMOTA + "data/meta.json?d="+today, {cache:"no-cache"}, 15000); }catch(_){ m = null; } }
+    if(!m) m = await fetchJSON("data/meta.json?d="+today, {cache:"no-cache"}, 15000);
+    if(!m || !m.total_elementos) throw new Error("vazia");
+    baseMeta = m;
+    pill.className = "pill ok";
+    txt.innerHTML = "Base Brasil atualizada em <b>"+esc(fmtDataHora(m.atualizado_em))+"</b>";
+    const pc = $("#pillCount"); pc.hidden = false;
+    pc.innerHTML = '<span class="led" style="background:var(--ev)"></span><b>'+Number(m.eletropostos).toLocaleString("pt-BR")+"</b> eletropostos mapeados no país";
+    getBase(); // pré-carrega em segundo plano
+  }catch(_){
+    pill.className = "pill live"; txt.innerHTML = "Base diária ainda não gerada · usando modo <b>ao vivo</b>";
+  }
+}
+function pip(lon, lat, ring){
+  let inside = false;
+  for(let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if(((yi>lat)!==(yj>lat)) && (lon < (xj-xi)*(lat-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+function makeGeoTest(geo){
+  const polys = geo.type==="Polygon" ? [geo.coordinates] : geo.coordinates;
+  let minX=180,minY=90,maxX=-180,maxY=-90;
+  polys.forEach(p => p[0].forEach(([x,y]) => { if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }));
+  return (lat, lon) => {
+    if(lon<minX||lon>maxX||lat<minY||lat>maxY) return false;
+    return polys.some(p => { if(!pip(lon,lat,p[0])) return false; for(let k=1;k<p.length;k++) if(pip(lon,lat,p[k])) return false; return true; });
+  };
+}
+function filterBase(elements, scope){
+  if(scope.kind==="state") return elements.filter(e => e.uf===scope.uf);
+  if(scope.kind==="area" && scope.geo){ const t = makeGeoTest(scope.geo); return elements.filter(e => t(e.lat, e.lon)); }
+  const c = scope.center, r = scope.radius || 10000;
+  return elements.filter(e => hav(c, e) <= r + (e.tags && e.tags.amenity==="fuel" ? MATCH_M : 0));
+}
+
+/* ================= Correções verificadas =================
+   Informações conferidas manualmente. Valem por cima dos dados das bases abertas.
+   Para incluir outra: copie um bloco, ajuste nome, coordenadas (lat/lon) e o que foi verificado.
+   - match: raio em metros para reconhecer o mesmo local nas bases
+   - adicionar: true = inclui o local mesmo que nenhuma base o tenha cadastrado            */
+const VERIFICADOS = [
+  { nome:"NorteShopping", lat:-22.88660, lon:-43.28200, match:450, adicionar:true,
+    endereco:"Av. Dom Hélder Câmara, 5474 – Cachambi, Rio de Janeiro/RJ",
+    recarga:"gratis", estacionamento:"gratis-recarga",
+    horario:"Mo-Sa 10:00-22:00; Su 13:00-21:00", horarioDe:"horário do shopping",
+    fontes:"Horário: Riotur (guia oficial do Rio). Gratuidade da recarga e do estacionamento para quem recarrega: informação local verificada." },
+  { nome:"Shopping Nova América", lat:-22.87834, lon:-43.27167, match:450, adicionar:false,
+    recarga:"gratis", estacionamento:"pago",
+    horario:"Mo-Sa 10:00-22:00; Su,PH 11:00-22:00", horarioDe:"horário do shopping",
+    fontes:"Horário: Riotur (guia oficial do Rio). Recarga grátis; paga-se apenas o estacionamento: Open Charge Map + informação local." }
+];
+function applyVerified(elements, scope){
+  const out = elements.slice();
+  VERIFICADOS.forEach(v => {
+    const nv = norm(v.nome).replace(/\s+/g,"");
+    let hit = false;
+    out.forEach(e => {
+      const t = e.tags || {}; if(t.amenity !== "charging_station") return;
+      const c = coord(e); if(!c || hav(c, v) > v.match) return;
+      const nm = norm([t.name, t.operator].join(" ")).replace(/\s+/g,"").replace("shooping","shopping");
+      if(hav(c, v) > 150 && nm.indexOf(nv) < 0) return;      // longe e com outro nome: não é o mesmo local
+      hit = true; e.tags = Object.assign({}, t, verifiedTags(v, t));
+    });
+    if(!hit && v.adicionar && scope && filterBase([{lat:v.lat, lon:v.lon, uf:v.uf || "RJ", tags:{}}], scope).length){
+      out.push({type:"verif", id:nv, lat:v.lat, lon:v.lon, src:"verif",
+        tags: Object.assign({amenity:"charging_station", name:v.nome, "addr:full":v.endereco||""}, verifiedTags(v, {}))});
+    }
+  });
+  return out;
+}
+function verifiedTags(v, t){
+  const x = {"rv:verified":v.fontes};
+  if(v.recarga==="gratis"){ x.fee = "no"; x.charge = ""; }
+  if(v.recarga==="pago") x.fee = "yes";
+  if(v.estacionamento) x["rv:parking"] = v.estacionamento==="pago" ? "paid" : v.estacionamento==="gratis-recarga" ? "free_charging" : "free";
+  if(v.horario){ x["rv:venue_hours"] = v.horario; x["rv:venue_from"] = v.horarioDe || "horário do local"; if(!t.opening_hours) x.opening_hours = ""; }
+  return x;
+}
+
+/* ================= Open Charge Map (2ª fonte) ================= */
+const OCM_KEY_DEFAULT = "";   // opcional: cole aqui a chave para valer para todos que abrirem o site
+function getOcmKey(){ let k = ""; try{ k = localStorage.getItem("rotavolt:ocm") || ""; }catch(_){} return (k || OCM_KEY_DEFAULT || "").trim(); }
+const UF_BY_NAME = {}; UFS.forEach(([s,n]) => { UF_BY_NAME[norm(n)] = s; });
+const OCM_SOCK = [["ccs","type2_combo"],["combo","type2_combo"],["chademo","chademo"],["tesla","tesla_supercharger"],["gb-t","gb_t"],["gbt","gb_t"],["type 2","type2"],["mennekes","type2"],["type 1","type1"],["j1772","type1"],["schuko","schuko"],["nbr","nbr14136"],["tomada","nbr14136"]];
+function ocmToElements(pois){
+  const out = [];
+  (pois||[]).forEach(p => {
+    const stt = p.StatusType || {}; if(stt.IsOperational === false) return;
+    const ut = p.UsageType || {}; if(ut.IsPrivateIndividual || [2,3].indexOf(ut.ID) >= 0) return;   // 2/3 = privado/restrito
+    const a = p.AddressInfo || {}; if(a.Latitude == null || a.Longitude == null) return;
+    const t = {amenity:"charging_station"};
+    if(a.Title) t.name = String(a.Title).trim();
+    const op = (p.OperatorInfo || {}).Title;
+    if(op && !/unknown|desconhecid/i.test(op)) t.operator = op.trim();
+    const cost = String(p.UsageCost || "").trim(), lc = norm(cost);
+    const accTxt = norm(a.AccessComments || "");
+    const parkingOnly = /parking|estacionamento/.test(lc + " " + accTxt) && !/kwh|\/ ?kw|por kw|minut|r\$ ?\d/.test(lc);
+    if(parkingOnly){ t.fee = "no"; t["rv:parking"] = /free|gratis|gratuito/.test(lc + " " + accTxt) ? "free" : "paid"; }
+    else if(lc && /free|gratis|gratuito|sem custo/.test(lc)) t.fee = "no";
+    else if(lc || ut.IsPayAtLocation){ t.fee = "yes"; if(cost) t.charge = cost.slice(0,80); }
+    if(ut.ID === 6) t.access = "customers";
+    if(ut.ID === 4) t["rv:membership"] = "yes";
+    if(a.AccessComments && !/^need to pay for parking$/i.test(String(a.AccessComments).trim())) t["rv:access_note"] = String(a.AccessComments).trim().slice(0,160);
+    const addr = [a.AddressLine1, a.AddressLine2].filter(Boolean).join(", ");
+    if(addr) t["addr:street"] = addr;
+    if(a.Town) t["addr:city"] = a.Town;
+    if(a.Postcode) t["addr:postcode"] = String(a.Postcode);
+    const acc = norm((a.AccessComments||"") + " " + (p.GeneralComments||""));
+    if(/24 ?h|24 hor|24\/7/.test(acc)) t.opening_hours = "24/7";
+    const socks = {};
+    (p.Connections || []).forEach(c => {
+      const title = norm(((c.ConnectionType||{}).Title) || "");
+      const hit = OCM_SOCK.find(([k]) => title.indexOf(k) >= 0); if(!hit) return;
+      const tag = hit[1]; socks[tag] = socks[tag] || [0,0];
+      socks[tag][0] += +(c.Quantity || 1); socks[tag][1] = Math.max(socks[tag][1], +(c.PowerKW || 0));
+    });
+    Object.keys(socks).forEach(tag => { t["socket:"+tag] = String(socks[tag][0]); if(socks[tag][1]) t["socket:"+tag+":output"] = socks[tag][1] + " kW"; });
+    const stp = String(a.StateOrProvince || "").trim();
+    const uf = UF_NAME[stp.toUpperCase()] ? stp.toUpperCase() : (UF_BY_NAME[norm(stp)] || null);
+    out.push({type:"ocm", id:p.ID, lat:+a.Latitude, lon:+a.Longitude, tags:t, uf, src:"ocm"});
+  });
+  return out;
+}
+async function fetchOcm(scope, key){
+  const u = new URL("https://api.openchargemap.io/v3/poi/");
+  const p = {output:"json", countrycode:"BR", compact:"false", verbose:"false", maxresults:5000, key};
+  if(scope.kind==="state") p.maxresults = 30000;
+  else if(scope.kind==="area" && scope.geo){
+    const polys = scope.geo.type==="Polygon" ? [scope.geo.coordinates] : scope.geo.coordinates;
+    let minX=180,minY=90,maxX=-180,maxY=-90;
+    polys.forEach(pl => pl[0].forEach(([x,y]) => { if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }));
+    p.boundingbox = `(${maxY},${minX}),(${minY},${maxX})`;
+  } else {
+    p.latitude = scope.center.lat.toFixed(6); p.longitude = scope.center.lon.toFixed(6);
+    p.distance = ((scope.radius || 10000)/1000).toFixed(1); p.distanceunit = "KM";
+  }
+  Object.keys(p).forEach(k => u.searchParams.set(k, p[k]));
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), scope.kind==="state" ? 120000 : 45000);
+  try{
+    const r = await fetch(u.toString(), {signal: ctl.signal});
+    if(r.status===401 || r.status===403){ const e = new Error("A chave do Open Charge Map foi recusada. Confira em ⚙️ Fontes de dados."); e.badKey = true; throw e; }
+    if(!r.ok) throw new Error("Open Charge Map: HTTP " + r.status);
+    return filterBase(ocmToElements(await r.json()), scope);
+  } finally { clearTimeout(tm); }
+}
+function mergeSources(osm, ocm){
+  if(!ocm || !ocm.length) return osm || [];
+  const ch = (osm||[]).filter(e => e.tags && e.tags.amenity==="charging_station").map(coord).filter(Boolean);
+  return (osm||[]).concat(ocm.filter(o => !ch.some(c => hav(c, o) < 60)));
+}
+function refreshOcmUi(){
+  const k = getOcmKey(), pill = $("#pillOcm");
+  pill.className = "pill btnlike " + (k ? "ok" : "warn");
+  $("#pillOcmTxt").innerHTML = k ? "Open Charge Map: <b>ativo</b>" : "Open Charge Map: <b>desativado</b> · toque para ativar";
+  try{ $("#ocmKey").value = localStorage.getItem("rotavolt:ocm") || ""; }catch(_){}
+}
+function toggleCfg(force){
+  const c = $("#cfg"); const open = force != null ? force : c.hidden;
+  c.hidden = !open; $("#cfgBtn").setAttribute("aria-expanded", open);
+  if(open) c.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+/* ================= UI state ================= */
+const st = {
+  ev: [], fu: [], center: null, filter: "all", q: "",
+  shown: {ev: PAGE, fu: PAGE}, map: null, layer: null, markers: new Map(), byId: new Map()
+};
+
+function setStatus(msg, kind){
+  const el = $("#status");
+  el.className = "status" + (kind==="err" ? " err" : "");
+  el.innerHTML = (kind==="load" ? '<span class="spin"></span>' : "") + (msg || "");
+}
+
+/* ================= Form ================= */
+const ufSel = $("#uf");
+UFS.forEach(([s,n]) => { const o=document.createElement("option"); o.value=s; o.textContent=`${n} (${s})`; ufSel.appendChild(o); });
+
+const cepIn = $("#cep");
+cepIn.addEventListener("input", () => {
+  let v = cepIn.value.replace(/\D/g,"").slice(0,8);
+  if(v.length>5) v = v.slice(0,5)+"-"+v.slice(5);
+  cepIn.value = v; markActive();
+  if(v.replace(/\D/g,"").length===8) prefillCep();
+});
+["bairro","cidade"].forEach(id => $("#"+id).addEventListener("input", markActive));
+ufSel.addEventListener("change", markActive);
+
+function level(){
+  if($("#cep").value.replace(/\D/g,"").length) return "cep";
+  if($("#bairro").value.trim()) return "bairro";
+  if($("#cidade").value.trim()) return "cidade";
+  if(ufSel.value) return "uf";
+  return null;
+}
+function markActive(){
+  const lv = level();
+  document.querySelectorAll(".field").forEach(f => f.classList.toggle("active", f.dataset.k===lv));
+}
+
+let cepCache = {};
+async function viaCep(cep){
+  if(cepCache[cep]) return cepCache[cep];
+  const d = await fetchJSON(`https://viacep.com.br/ws/${cep}/json/`, {}, 12000);
+  if(d.erro) throw new Error("CEP não encontrado");
+  cepCache[cep] = d; return d;
+}
+async function prefillCep(){
+  const cep = cepIn.value.replace(/\D/g,"");
+  try{
+    const d = await viaCep(cep);
+    if(d.bairro) $("#bairro").value = d.bairro;
+    if(d.localidade) $("#cidade").value = d.localidade;
+    if(d.uf) ufSel.value = d.uf;
+    setStatus(`CEP ${cepIn.value}: ${[d.logradouro,d.bairro,d.localidade+"/"+d.uf].filter(Boolean).join(", ")}`);
+    markActive();
+  }catch(e){ /* silencioso: o erro aparece ao buscar */ }
+}
+
+$("#clear").addEventListener("click", () => {
+  ["cep","bairro","cidade"].forEach(id => $("#"+id).value=""); ufSel.value="";
+  markActive(); setStatus("");
+});
+
+/* ================= Resolve location -> scope ================= */
+function pickBest(list, wantTypes){
+  if(!Array.isArray(list) || !list.length) return null;
+  const rel = list.find(x => x.osm_type==="relation" && (!wantTypes || wantTypes.includes(x.addresstype) || wantTypes.includes(x.type)));
+  return rel || list[0];
+}
+function scopeFromNomi(hit, radius, label, sub){
+  const center = {lat:+hit.lat, lon:+hit.lon};
+  if(hit.osm_type==="relation"){
+    const g = hit.geojson && /Polygon/.test(hit.geojson.type) ? hit.geojson : null;
+    return {kind:"area", areaId: 3600000000 + Number(hit.osm_id), center, label, sub, geo:g, radius};
+  }
+  return {kind:"around", center, radius, label, sub};
+}
+
+async function resolveScope(){
+  const lv = level();
+  const bairro = $("#bairro").value.trim(), cidade = $("#cidade").value.trim(), uf = ufSel.value;
+  const radius = +$("#radius").value;
+  const stateName = uf ? UF_NAME[uf] : "";
+
+  if(!lv) throw new Error("Preencha pelo menos um campo: CEP, bairro, cidade ou estado.");
+
+  if(lv==="cep"){
+    const cep = $("#cep").value.replace(/\D/g,"");
+    if(cep.length!==8) throw new Error("CEP deve ter 8 dígitos.");
+    setStatus("Consultando o CEP…","load");
+    const d = await viaCep(cep);
+    if(d.bairro && !bairro) $("#bairro").value = d.bairro;
+    if(d.localidade && !cidade) $("#cidade").value = d.localidade;
+    if(d.uf && !uf) ufSel.value = d.uf;
+    const st_ = UF_NAME[d.uf] || d.uf;
+    setStatus("Localizando o CEP no mapa…","load");
+    const tries = [
+      d.logradouro ? {street:d.logradouro, city:d.localidade, state:st_, country:"Brasil"} : null,
+      {postalcode: `${cep.slice(0,5)}-${cep.slice(5)}`, country:"Brasil"},
+      d.bairro ? {q:`${d.bairro}, ${d.localidade}, ${st_}, Brasil`} : null,
+      {city:d.localidade, state:st_, country:"Brasil"}
+    ].filter(Boolean);
+    let hit=null;
+    for(const p of tries){
+      const r = await nominatim("/search", {...p, countrycodes:"br", limit:1});
+      if(r && r[0]){ hit=r[0]; break; }
+    }
+    if(!hit) throw new Error("Não consegui posicionar este CEP no mapa. Tente pelo bairro ou cidade.");
+    const label = `CEP ${cep.slice(0,5)}-${cep.slice(5)}`;
+    const sub = [d.logradouro, d.bairro, `${d.localidade}/${d.uf}`].filter(Boolean).join(" · ") + ` · raio de ${radius/1000} km`;
+    return {kind:"around", center:{lat:+hit.lat, lon:+hit.lon}, radius, label, sub};
+  }
+
+  if(lv==="bairro"){
+    setStatus("Localizando o bairro…","load");
+    const q = [bairro, cidade, stateName, "Brasil"].filter(Boolean).join(", ");
+    const r = await nominatim("/search", {q, countrycodes:"br", limit:5, addressdetails:1, polygon_geojson:1, polygon_threshold:0.0002});
+    const hit = pickBest(r, ["suburb","neighbourhood","quarter","city_district","borough"]);
+    if(!hit) throw new Error(`Bairro "${bairro}" não encontrado. Informe também a cidade e o estado.`);
+    const a = hit.address||{};
+    const city = a.city||a.town||a.village||a.municipality||cidade;
+    const sub = [city, a.state].filter(Boolean).join(" · ") + (hit.osm_type!=="relation" ? ` · raio de ${radius/1000} km` : " · limite do bairro");
+    return scopeFromNomi(hit, radius, bairro, sub);
+  }
+
+  if(lv==="cidade"){
+    setStatus("Localizando a cidade…","load");
+    const r = await nominatim("/search", {city:cidade, state:stateName, country:"Brasil", countrycodes:"br", limit:5, addressdetails:1, polygon_geojson:1, polygon_threshold:0.0005});
+    let hit = pickBest(r, ["city","town","municipality","village"]);
+    if(!hit){
+      const r2 = await nominatim("/search", {q:[cidade,stateName,"Brasil"].filter(Boolean).join(", "), countrycodes:"br", limit:5, addressdetails:1, polygon_geojson:1, polygon_threshold:0.0005});
+      hit = pickBest(r2, ["city","town","municipality","village"]);
+    }
+    if(!hit) throw new Error(`Cidade "${cidade}" não encontrada.`);
+    const a = hit.address||{};
+    return scopeFromNomi(hit, Math.max(radius,15000), a.city||a.town||a.municipality||cidade, [a.state, "limite do município"].filter(Boolean).join(" · "));
+  }
+
+  // estado
+  const centers = {AC:[-9.0,-70.5],AL:[-9.6,-36.6],AP:[1.4,-51.8],AM:[-4.2,-63.0],BA:[-12.6,-41.7],CE:[-5.3,-39.3],DF:[-15.8,-47.9],ES:[-19.6,-40.5],GO:[-15.9,-49.6],MA:[-5.2,-45.3],MT:[-12.9,-55.9],MS:[-20.5,-54.8],MG:[-18.5,-44.6],PA:[-3.8,-52.5],PB:[-7.1,-36.7],PR:[-24.6,-51.6],PE:[-8.4,-37.9],PI:[-7.4,-42.7],RJ:[-22.3,-42.6],RN:[-5.8,-36.6],RS:[-29.7,-53.2],RO:[-10.9,-62.8],RR:[2.1,-61.4],SC:[-27.3,-50.4],SP:[-22.2,-48.7],SE:[-10.6,-37.4],TO:[-10.2,-48.3]};
+  const c = centers[uf];
+  return {kind:"state", uf, center: c ? {lat:c[0], lon:c[1]} : null, mapHint: c, label: `${stateName} (${uf})`, sub:"estado inteiro"};
+}
+
+/* ================= Overpass query ================= */
+function buildQuery(scope){
+  let pre = "", f;
+  if(scope.kind==="state"){ pre = `area["ISO3166-2"="BR-${scope.uf}"]->.a;`; f = "(area.a)"; }
+  else if(scope.kind==="area"){ pre = `area(id:${scope.areaId})->.a;`; f = "(area.a)"; }
+  else { f = `(around:${scope.radius},${scope.center.lat.toFixed(6)},${scope.center.lon.toFixed(6)})`; }
+  const lim = scope.kind==="state" ? "[timeout:170][maxsize:536870912]" : scope.kind==="area" ? "[timeout:80][maxsize:268435456]" : "[timeout:35][maxsize:134217728]";
+  return `[out:json]${lim};
+${pre}
+nwr["amenity"="charging_station"]${f}->.ev;
+${scope.kind==="state" ? `nwr["amenity"="fuel"](around.ev:${MATCH_M})->.fn;` : `nwr["amenity"="fuel"]${f}->.fn;`}
+nwr["amenity"="fuel"]["fuel:electricity"="yes"]${f}->.fe;
+${scope.kind==="state" ? `nwr["shop"~"^(mall|supermarket|department_store)$"]["opening_hours"](around.ev:400)->.v;` : `nwr["shop"~"^(mall|supermarket|department_store)$"]["opening_hours"]${f}->.v;`}
+${scope.kind==="state" ? `nwr["amenity"="parking"]["opening_hours"](around.ev:150)->.p;` : `nwr["amenity"="parking"]["opening_hours"]${f}->.p;`}
+(.ev;.fn;.fe;.v;.p;);
+out center tags;`;
+}
+
+/* ================= Classification ================= */
+const SOCKETS = {
+  type2_combo:{n:"CCS2", dc:true}, ccs:{n:"CCS2", dc:true}, chademo:{n:"CHAdeMO", dc:true},
+  tesla_supercharger:{n:"Tesla SC", dc:true}, tesla_supercharger_ccs:{n:"Tesla CCS", dc:true}, gb_t_dc:{n:"GB/T DC", dc:true},
+  type1_combo:{n:"CCS1", dc:true}, type2:{n:"Tipo 2"}, type2_cable:{n:"Tipo 2 (cabo)"}, type1:{n:"Tipo 1"},
+  tesla_destination:{n:"Tesla Dest."}, gb_t:{n:"GB/T"}, schuko:{n:"Tomada"}, nbr14136:{n:"Tomada"}, type3c:{n:"Tipo 3"},
+  cee_blue:{n:"CEE azul"}, cee_red_16a:{n:"CEE 16A"}, cee_red_32a:{n:"CEE 32A"}, nema_5_15:{n:"Tomada"}, nema_14_50:{n:"NEMA 14-50"}
+};
+const CAR_SOCKETS = new Set(["type2_combo","ccs","chademo","tesla_supercharger","tesla_supercharger_ccs","gb_t_dc","type1_combo","type2","type2_cable","type1","tesla_destination","gb_t"]);
+
+function parsePower(v){
+  if(!v) return null;
+  const m = String(v).replace(",",".").match(/([\d.]+)\s*(kw|w|kva)?/i);
+  if(!m) return null;
+  let n = parseFloat(m[1]); const u=(m[2]||"kw").toLowerCase();
+  if(u==="w") n = n/1000;
+  return isFinite(n) && n>0 ? n : null;
+}
+function sockets(t){
+  const out = []; let maxKw = null, dc = false, carSocket=false;
+  for(const [k,v] of Object.entries(t)){
+    const m = k.match(/^socket:([a-z0-9_]+)$/);
+    if(m && v!=="no" && v!=="0"){
+      const id=m[1], info = SOCKETS[id] || {n:id.replace(/_/g," ")};
+      const cnt = /^\d+$/.test(v) ? +v : null;
+      const kw = parsePower(t[`socket:${id}:output`]);
+      if(kw) maxKw = Math.max(maxKw||0, kw);
+      if(info.dc) dc = true;
+      if(CAR_SOCKETS.has(id)) carSocket = true;
+      out.push({n:info.n, cnt, kw});
+    }
+  }
+  const p2 = parsePower(t["charging_station:output"]) || parsePower(t["maxpower"]);
+  if(p2) maxKw = Math.max(maxKw||0, p2);
+  if(maxKw && maxKw>=40) dc = true;
+  return {list: out, maxKw, dc, carSocket};
+}
+/* ---------- Horário de funcionamento (formato OpenStreetMap -> português) ---------- */
+const OH_DAYS = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+const OH_PT = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+const ohCache = new Map();
+function parseOH(raw){
+  if(!raw) return null;
+  if(ohCache.has(raw)) return ohCache.get(raw);
+  let res;
+  try{ res = parseOHinner(String(raw)); }catch(_){ res = {raw:String(raw), unparsed:true}; }
+  ohCache.set(raw, res); return res;
+}
+function parseOHinner(raw){
+  let s = raw.trim().replace(/[–—]/g,"-").replace(/\s+/g," ");
+  // aceita também horários escritos em português (ex.: "Seg-Sáb 10:00-22:00 / Domingo 12:00-21:00")
+  const PTD = [[/\bseg(unda)?(-feira)?\.?/gi,"Mo"],[/\bter(ça|ca)?(-feira)?\.?/gi,"Tu"],[/\bqua(rta)?(-feira)?\.?/gi,"We"],[/\bqui(nta)?(-feira)?\.?/gi,"Th"],[/\bsex(ta)?(-feira)?\.?/gi,"Fr"],[/\bs[aá]b(ado)?s?\.?/gi,"Sa"],[/\bdom(ingo)?s?\.?/gi,"Su"],[/\bferiados?\b/gi,"PH"]];
+  if(/\b(seg|ter|qua|qui|sex|s[aá]b|dom)/i.test(s)){
+    PTD.forEach(([re,v]) => { s = s.replace(re, v); });
+    s = s.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\s+(a|à)\s+(Mo|Tu|We|Th|Fr|Sa|Su)\b/g,"$1-$3").replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\s+e\s+(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g,"$1,$2")
+         .replace(/\s*\/\s*(?=(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b)/g,"; ").replace(/\b(das|de)\s+/gi,"").replace(/\s+(às|as|a|até)\s+/gi,"-").replace(/:\s+/g,": ")
+         .replace(/(Mo|Tu|We|Th|Fr|Sa|Su|PH):\s*/g,"$1 ").replace(/(\d{1,2})h(\d{2})/g,"$1:$2").replace(/(\d{1,2})h\b/g,"$1:00");
+  }
+  if(/^(24\s*\/\s*7|24h|24 ?horas)$/i.test(s)) return full24(raw);
+  const week = [null,null,null,null,null,null,null];
+  // separa regras por ";" ou "||" e também "Mo-Fr 08:00-18:00, Sa 08:00-12:00" (vírgula antes de dia)
+  s = s.replace(/(\d|off|closed)\s*,\s*(?=(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)\b)/g, "$1;");   // "Mo-Fr 08:00-18:00, Sa ..." -> duas regras
+  const rules = s.split(/\s*;\s*|\s*\|\|\s*/).map(r=>r.trim()).filter(Boolean);
+  let any = false;
+  for(let rule of rules){
+    rule = rule.replace(/"[^"]*"/g,"").trim();
+    if(!rule) continue;
+    rule = rule.replace(/\b(PH|SH)\s*,\s*/g,"").replace(/\s*,\s*(PH|SH)\b/g,"");   // "PH,Mo-Su" -> "Mo-Su"
+    if(/^(PH|SH)\b/.test(rule)) continue;                      // regra só de feriado: ignorada no resumo
+    rule = rule.replace(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))?:?\s*/,"");
+    const m = rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:\s*-\s*(?:Mo|Tu|We|Th|Fr|Sa|Su))?\s*,?\s*)+)?(.*)$/);
+    const dayPart = (m[1]||"").trim().replace(/,$/,""), timeRaw = (m[2]||"").trim();
+    let days = [];
+    if(!dayPart) days = [0,1,2,3,4,5,6];
+    else dayPart.split(/\s*,\s*/).forEach(d => {
+      if(d==="PH" || !d) return;
+      const [a,b] = d.split(/\s*-\s*/); const ia = OH_DAYS.indexOf(a), ib = b ? OH_DAYS.indexOf(b) : ia;
+      if(ia<0 || ib<0) throw new Error("dia");
+      for(let i = ia, n = 0; n < 7; i = (i+1)%7, n++){ days.push(i); if(i===ib) break; }
+    });
+    if(!days.length) continue;
+    if(/^(off|closed|fechado)$/i.test(timeRaw)){ days.forEach(d => week[d] = []); any = true; continue; }
+    let tp = /^[\d\s:hH,+-]*$/.test(timeRaw) ? timeRaw.replace(/\s*h\s*/gi,":").replace(/:(?=\s*-|$|,)/g,":00") : timeRaw;
+    if(!tp || /^(open|24\/7)$/i.test(tp)) tp = "00:00-24:00";
+    const spans = [];
+    tp.split(/\s*,\s*/).forEach(x => {
+      const mm = x.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\+?$/);
+      if(!mm) throw new Error("hora");
+      let a = +mm[1]*60 + +mm[2], b = +mm[3]*60 + +mm[4];
+      if(b === 1439) b = 1440;                                  // 23:59 = fim do dia
+      if(b <= a) b += 1440;
+      spans.push([a,b]);
+    });
+    days.forEach(d => week[d] = spans.map(x=>x.slice()));
+    any = true;
+  }
+  if(!any) throw new Error("vazio");
+  for(let d=0; d<7; d++) if(week[d]===null) week[d] = [];      // dia não citado = fechado
+  const is24 = week.every(sp => sp.some(([a,b]) => a<=0 && b>=1440));
+  return {raw, week, is24};
+}
+function full24(raw){ return {raw, week:[0,1,2,3,4,5,6].map(()=>[[0,1440]]), is24:true}; }
+const hhmm = m => { m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); };
+function spansTxt(sp){
+  if(!sp.length) return "fechado";
+  if(sp.some(([a,b]) => a<=0 && b>=1440)) return "24 horas";
+  return sp.map(([a,b]) => hhmm(a)+"–"+hhmm(b)).join(" e ");
+}
+function ohSummary(o){
+  if(!o) return null;
+  if(o.unparsed) return o.raw;
+  if(o.is24) return "24 horas · todos os dias (seg a dom)";
+  const keys = o.week.map(spansTxt), groups = [];
+  for(let d=0; d<7; d++){
+    const g = groups[groups.length-1];
+    if(g && g.txt===keys[d] && g.end===d-1) g.end = d; else groups.push({start:d, end:d, txt:keys[d]});
+  }
+  if(groups.length===1) return "Todos os dias (seg a dom): " + groups[0].txt;
+  return groups.map(g => {
+    const lbl = g.start===g.end ? OH_PT[g.start] : (g.end===g.start+1 ? OH_PT[g.start]+" e "+OH_PT[g.end] : OH_PT[g.start]+" a "+OH_PT[g.end]);
+    return lbl + ": " + g.txt;
+  }).join(" · ");
+}
+function openState(o, when){
+  if(!o || o.unparsed) return null;
+  if(o.is24) return {open:true};
+  const now = when || new Date();
+  const d = (now.getDay()+6)%7, m = now.getHours()*60 + now.getMinutes();
+  const prev = (d+6)%7;
+  const openNow = o.week[d].some(([a,b]) => m>=a && m<b) || o.week[prev].some(([a,b]) => b>1440 && m+1440 < b);
+  if(openNow){
+    const cur = o.week[d].find(([a,b]) => m>=a && m<b);
+    return {open:true, until: cur && cur[1]<1440 ? hhmm(cur[1]) : null};
+  }
+  const later = o.week[d].filter(([a]) => a>m).sort((x,y)=>x[0]-y[0])[0];
+  if(later) return {open:false, next:"hoje às "+hhmm(later[0])};
+  for(let k=1; k<=7; k++){ const dd=(d+k)%7; const f = o.week[dd].slice().sort((x,y)=>x[0]-y[0])[0]; if(f) return {open:false, next:(k===1?"amanhã":OH_PT[dd].toLowerCase()) + " às " + hhmm(f[0])}; }
+  return {open:false};
+}
+function is24(oh){ const o = parseOH(oh); return !!(o && o.is24); }
+
+/* ---------- Somente locais públicos ---------- */
+const PRIV_RE = /condom[ií]n|residencia|\bresid\.|edif[ií]cio|\bed\.\s|pr[eé]dio|apartament|\bcond\.|\bcond\s|moradores|uso (exclusivo|interno|restrito)|privativ|\bprivad[oa]s?\b|\bprivate\b|funcion[aá]rios|colaboradores|\bfrota\b|garagem (do|de) (pr[eé]dio|condom)|club ?house|clube dos moradores/i;
+const PRIV_ACCESS = ["private","no","residents","permit","delivery","employees","staff","military","agricultural","forestry","emergency"];
+function isPublic(t){
+  if(PRIV_ACCESS.indexOf(String(t.access||"").toLowerCase()) >= 0) return false;
+  if(PRIV_ACCESS.indexOf(String(t.motorcar||"").toLowerCase()) >= 0) return false;
+  const txt = [t.name, t.operator, t.description, t["rv:access_note"]].filter(Boolean).join(" ");
+  return !PRIV_RE.test(txt);
+}
+function feeOf(t){
+  const f = (t.fee||"").toLowerCase();
+  if(f==="no" || f==="free") return "free";
+  if(f==="yes" || f.startsWith("yes") || t.charge || t["charge:conditional"]) return "paid";
+  return "unk";
+}
+function addr(t){
+  const street = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(", ");
+  const parts = [street, t["addr:suburb"]||t["addr:neighbourhood"]||t["addr:quarter"], t["addr:city"], t["addr:state"]].filter(Boolean);
+  if(t["addr:full"]) return t["addr:full"];
+  return parts.join(" · ");
+}
+function coord(e){ if(e.lat!=null && e.lon!=null) return {lat:e.lat, lon:e.lon}; return e.center ? {lat:e.center.lat, lon:e.center.lon} : null; }
+function isCarCharger(t, s){
+  if(["private","no"].includes(t.access)) return false;
+  if(t.motorcar==="no") return false;
+  const bikeish = t.bicycle==="yes" || t.scooter==="yes" || t.motorcycle==="yes";
+  if(bikeish && t.motorcar!=="yes" && !s.carSocket) return false;
+  return true;
+}
+function fuels(t){
+  const out = [];
+  const yes = k => t[k] && t[k]!=="no";
+  if(Object.keys(t).some(k => /^fuel:(octane_\d+|gasoline|e10|e20|e25|e27)$/.test(k) && t[k]!=="no")) out.push(["Gasolina","g"]);
+  if(yes("fuel:ethanol") || yes("fuel:e100") || yes("fuel:e85")) out.push(["Etanol","e"]);
+  if(yes("fuel:diesel") || yes("fuel:HGV_diesel") || yes("fuel:biodiesel") || yes("fuel:GTL_diesel")) out.push(["Diesel","d"]);
+  if(yes("fuel:cng") || yes("fuel:lpg")) out.push(["GNV","n"]);
+  return out;
+}
+
+function classify(elements, center, scope){
+  elements = applyVerified(elements, scope);
+  const chargers = [], stations = [], venues = [];
+  for(const e of elements){
+    const vt = e.tags || {};
+    if(vt.opening_hours && vt.amenity!=="charging_station" && vt.amenity!=="fuel" && (vt.shop || vt.amenity==="parking")){
+      const vc = coord(e); if(vc) venues.push({lat:vc.lat, lon:vc.lon, oh:vt.opening_hours, name:vt.name || (vt.amenity==="parking" ? "estacionamento" : vt.shop==="mall" ? "shopping" : "mercado"), mall: vt.shop==="mall"});
+      continue;
+    }
+    const t = e.tags || {}; const c = coord(e); if(!c) continue;
+    if(t.amenity==="charging_station"){
+      const s = sockets(t);
+      if(!isCarCharger(t, s) || !isPublic(t)) continue;
+      chargers.push({id:e.type+"/"+e.id, t, ...c, s, h24:is24(t.opening_hours), fee:feeOf(t), src:e.src||"osm"});
+    } else if(t.amenity==="fuel"){
+      if(!isPublic(t)) continue;
+      stations.push({id:e.type+"/"+e.id, t, ...c, chargers:[], ownEv: t["fuel:electricity"]==="yes" || Object.keys(t).some(k=>/^socket:/.test(k))});
+    }
+  }
+  // dedupe stations by id
+  const sMap = new Map(); stations.forEach(s => sMap.set(s.id, s));
+  const stList = [...sMap.values()];
+  const evOnly = [];
+  const FUEL_RE = /(auto ?posto|posto (de )?combust|\bshell\b|ipiranga|petrobras|br mania|ra[ií]zen|texaco|\besso\b|\bale\b combust|\bposto\b(?! de recarga| el[eé]tric))/i;
+  for(const ch of chargers){
+    let best=null, bd=Infinity;
+    for(const s of stList){ const d = hav(ch, s); if(d<bd){ bd=d; best=s; } }
+    if(best && bd<=MATCH_M){ best.chargers.push(ch); continue; }
+    const nm = [ch.t.name, ch.t.operator, ch.t.brand].filter(Boolean).join(" ");
+    if(FUEL_RE.test(nm)){
+      stList.push({id:"pf-"+ch.id, t:{amenity:"fuel", name: ch.t.name || ch.t.operator, "addr:street": ch.t["addr:street"], "addr:city": ch.t["addr:city"]}, lat:ch.lat, lon:ch.lon, chargers:[ch], ownEv:false});
+    } else evOnly.push(ch);
+  }
+  const fu = stList.filter(s => s.chargers.length || s.ownEv).map(s => {
+    const own = sockets(s.t);
+    const allS = [...own.list, ...s.chargers.flatMap(c=>c.s.list)];
+    const maxKw = Math.max(own.maxKw||0, ...s.chargers.map(c=>c.s.maxKw||0)) || null;
+    const dc = own.dc || s.chargers.some(c=>c.s.dc);
+    const h24 = is24(s.t.opening_hours) || s.chargers.some(c=>c.h24);
+    const fees = [feeOf(s.t), ...s.chargers.map(c=>c.fee)];
+    const fee = fees.includes("paid") ? "paid" : (fees.includes("free") ? "free" : "unk");
+    const network = [...new Set(s.chargers.map(c=>c.t.network||c.t.operator||c.t.brand).filter(Boolean))].join(", ");
+    const chOh = (s.chargers.find(c => c.t.opening_hours) || {t:{}}).t.opening_hours;
+    const ohRaw = s.t.opening_hours || chOh || "";
+    const member = s.chargers.some(c => c.t["rv:membership"]);
+    const note = (s.chargers.find(c => c.t["rv:access_note"]) || {t:{}}).t["rv:access_note"];
+    return {...s, kind:"fu", plugs: mergePlugs(allS), maxKw, dc, h24, fee, network, fuels: fuels(s.t), ohRaw, chOh: (s.t.opening_hours && chOh && chOh!==s.t.opening_hours) ? chOh : "", member, note};
+  });
+  const ev = evOnly.map(c => ({...c, kind:"ev", plugs: mergePlugs(c.s.list), maxKw:c.s.maxKw, dc:c.s.dc, ohRaw:c.t.opening_hours||"", member:!!c.t["rv:membership"], note:c.t["rv:access_note"]}));
+  const now = new Date();
+  [...ev, ...fu].forEach(x => {
+    // horário verificado do local (shopping) ou, se faltar, horário do shopping/mercado/estacionamento onde o ponto fica
+    const vh = x.t["rv:venue_hours"] || (x.chargers && (x.chargers.find(c => c.t["rv:venue_hours"]) || {t:{}}).t["rv:venue_hours"]);
+    if(!x.ohRaw && vh){ x.ohRaw = vh; x.ohFrom = x.t["rv:venue_from"] || "horário do local"; }
+    if(!x.ohRaw && venues.length){
+      let best = null, bd = Infinity;
+      venues.forEach(v => { const d = hav(x, v); const lim = v.mall ? 450 : 150; if(d <= lim && d < bd){ bd = d; best = v; } });
+      if(best){ x.ohRaw = best.oh; x.ohFrom = "horário do local: " + best.name; }
+    }
+    const pk = x.t["rv:parking"] || (x.chargers && (x.chargers.find(c => c.t["rv:parking"]) || {t:{}}).t["rv:parking"]);
+    x.parking = pk || null;
+    x.verified = x.t["rv:verified"] || (x.chargers && (x.chargers.find(c => c.t["rv:verified"]) || {t:{}}).t["rv:verified"]) || "";
+    x.dist = center ? hav(center, x) : null;
+    x.oh = parseOH(x.ohRaw); x.ohState = openState(x.oh, now);
+    if(x.oh && x.oh.is24) x.h24 = true;
+  });
+  const rank = x => (x.h24 ? 0 : 3) + (x.fee==="paid" ? 0 : x.fee==="free" ? 1 : 2);
+  const openRank = x => x.ohState ? (x.ohState.open ? 0 : 2) : 1;   // aberto agora > sem horário > fechado agora
+  // ordem: sempre do mais próximo ao mais distante do ponto buscado (CEP, bairro, cidade, estado ou você)
+  const cmp = (a,b) => (a.dist==null||b.dist==null ? 0 : a.dist-b.dist) || openRank(a)-openRank(b) || rank(a)-rank(b) || nameOf(a).localeCompare(nameOf(b));
+  ev.sort(cmp); fu.sort(cmp);
+  return {ev, fu};
+}
+function mergePlugs(list){
+  const m = new Map();
+  list.forEach(p => {
+    const k = p.n; const o = m.get(k) || {n:k, cnt:0, kw:null, known:true};
+    if(p.cnt) o.cnt += p.cnt; else o.known = false;
+    if(p.kw) o.kw = Math.max(o.kw||0, p.kw);
+    m.set(k, o);
+  });
+  return [...m.values()];
+}
+function nameOf(x){
+  const n = nameOfRaw(x);
+  return n.replace(/\bShooping\b/gi, "Shopping").replace(/\bShoping\b/gi, "Shopping");
+}
+function nameOfRaw(x){
+  const t = x.t;
+  if(x.kind==="fu") return t.name || t.brand || t.operator || "Posto de combustível";
+  return t.name || t.network || t.operator || t.brand || "Eletroposto";
+}
+
+/* ================= Render ================= */
+const ICON = {
+  pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
+  route:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8z"/></svg>',
+  waze:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 16c-2-1-2.5-3-2.5-4.5C2.5 7 6.5 3.5 12 3.5S21.5 7 21.5 11.5c0 4-3 6.5-7 6.5h-4"/><circle cx="8" cy="19" r="1.8"/><circle cx="16" cy="19" r="1.8"/><circle cx="9.5" cy="10" r=".6" fill="currentColor"/><circle cx="14.5" cy="10" r=".6" fill="currentColor"/><path d="M9.5 13.5c1.3 1 3.7 1 5 0"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  plug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></svg>',
+  net:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  addr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-6h6v6"/></svg>',
+  map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  pump:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M6 8h7"/></svg>'
+};
+const gmaps = x => `https://www.google.com/maps/search/?api=1&query=${x.lat},${x.lon}`;
+const groute = x => `https://www.google.com/maps/dir/?api=1&destination=${x.lat},${x.lon}&travelmode=driving`;
+const waze = x => `https://waze.com/ul?ll=${x.lat},${x.lon}&navigate=yes`;
+
+function badges(x){
+  const b = [];
+  if(x.h24) b.push('<span class="b h24">● 24 horas · seg a dom</span>');
+  else if(x.ohState) b.push(x.ohState.open ? '<span class="b h24">● Aberto agora</span>' : '<span class="b closed">● Fechado agora</span>');
+  else b.push('<span class="b unk">Horário não informado</span>');
+  b.push(x.fee==="paid" ? '<span class="b paid">$ Recarga paga</span>' : x.fee==="free" ? '<span class="b free">Recarga grátis</span>' : '<span class="b unk">Tarifa não informada</span>');
+  if(x.parking==="paid") b.push('<span class="b paid">Estacionamento pago</span>');
+  if(x.parking==="free_charging") b.push('<span class="b free">Estacionamento grátis p/ quem recarrega</span>');
+  if(x.parking==="free") b.push('<span class="b free">Estacionamento grátis</span>');
+  if(x.verified) b.push('<span class="b ver">✔ Verificado</span>');
+  if(x.dc) b.push('<span class="b fast">⚡ Rápido DC</span>');
+  b.push('<span class="b pub">Acesso público</span>');
+  if(x.t.access==="customers" || (x.chargers && x.chargers.some(c=>c.t.access==="customers"))) b.push('<span class="b cust">Para clientes do local</span>');
+  if(x.member) b.push('<span class="b cust">Requer cadastro no app da rede</span>');
+  return b.join("");
+}
+function plugsHtml(x){
+  if(!x.plugs.length) return '<span>Tipos de conector não informados</span>';
+  return '<div class="plugs">' + x.plugs.map(p => `<span class="plug">${esc(p.n)}${p.known&&p.cnt?` ×${p.cnt}`:""}${p.kw?` · ${String(p.kw).replace(".",",")} kW`:""}</span>`).join("") + "</div>";
+}
+function cardHtml(x){
+  const t = x.t; const name = nameOf(x);
+  const ad = addr(t);
+  let lines = "";
+  if(x.kind==="fu"){
+    const brand = t.brand && t.brand!==name ? t.brand : "";
+    const fu = x.fuels.length ? x.fuels.map(([n,c])=>`<span class="fuelc ${c}">${n}</span>`).join("") : '<span class="fuelc u">Combustíveis não informados</span>';
+    lines += `<div class="ln">${ICON.pump}<div class="fuels">${fu}</div></div>`;
+    if(brand) lines += `<div class="ln">${ICON.net}<span>Bandeira: <b>${esc(brand)}</b></span></div>`;
+    if(x.network) lines += `<div class="ln">${ICON.net}<span>Recarga: <b>${esc(x.network)}</b></span></div>`;
+  } else {
+    const net = [t.network, t.operator].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i && v!==name).join(" · ");
+    if(net) lines += `<div class="ln">${ICON.net}<span>Rede/operador: <b>${esc(net)}</b></span></div>`;
+  }
+  lines += `<div class="ln">${ICON.plug}${plugsHtml(x)}</div>`;
+  {
+    let h;
+    const gq = encodeURIComponent([name, t["addr:street"], t["addr:city"]].filter(Boolean).join(", ") || (x.lat+","+x.lon));
+    const gLink = `<a href="https://www.google.com/maps/search/?api=1&query=${gq}" target="_blank" rel="noopener" style="color:var(--free)">ver horário no Google</a>`;
+    if(x.oh){
+      const sum = ohSummary(x.oh);
+      let st_ = "";
+      if(x.ohState && !x.h24) st_ = x.ohState.open ? ` <span style="color:var(--ev)">· aberto agora${x.ohState.until ? " até " + x.ohState.until : ""}</span>` : ` <span style="color:var(--red)">· fechado agora${x.ohState.next ? ", abre " + x.ohState.next : ""}</span>`;
+      h = `Horário${x.ohFrom ? " (" + esc(x.ohFrom) + ")" : (x.kind==="fu" ? " do posto" : "")}: <b>${esc(sum)}</b>${st_}${x.oh.unparsed ? " · " + gLink : ""}`;
+      if(x.chOh){ const o2 = parseOH(x.chOh); h += `<br>Carregador: <b>${esc(ohSummary(o2))}</b>`; }
+    } else {
+      h = `Horário: <b>não informado no cadastro</b> · ${gLink}`;
+    }
+    lines += `<div class="ln">${ICON.clock}<span>${h}</span></div>`;
+    if(x.note) lines += `<div class="ln">${ICON.net}<span>Informação de acesso: <b>${esc(x.note)}</b></span></div>`;
+    if(x.parking==="paid" && x.fee==="free") lines += `<div class="ln">${ICON.net}<span>Observação: <b>a recarga é grátis; você paga apenas o estacionamento.</b></span></div>`;
+    if(x.parking==="free_charging") lines += `<div class="ln">${ICON.net}<span>Observação: <b>recarga grátis e estacionamento grátis para quem está recarregando.</b></span></div>`;
+  }
+  if(t.charge && x.fee==="paid") lines += `<div class="ln">${ICON.net}<span>Preço: <b>${esc(t.charge)}</b></span></div>`;
+  lines += `<div class="ln">${ICON.addr}<span>${ad ? esc(ad) : "Endereço não cadastrado — use o mapa para a localização exata"}</span></div>`;
+  const fromOcm = x.src==="ocm" || (x.chargers && x.chargers.some(c=>c.src==="ocm"));
+  const fromVer = x.src==="verif";
+  lines += `<div class="src">Fonte: ${fromVer ? "correção verificada" : fromOcm ? "Open Charge Map" : "OpenStreetMap"}${x.verified ? " · " + esc(x.verified) : ""}</div>`;
+  return `<article class="card ${x.kind}" id="c-${esc(x.id.replace("/","-"))}">
+    <div class="ctop"><h4 class="cname">${esc(name)}</h4>${x.dist!=null?`<span class="dist">${fmtDist(x.dist)}</span>`:""}</div>
+    <div class="badges">${badges(x)}</div>
+    <div class="meta">${lines}</div>
+    <div class="actions">
+      <a class="act gm" href="${gmaps(x)}" target="_blank" rel="noopener">${ICON.pin} <span><span class="gmw">Google </span>Maps</span></a>
+      <a class="act" href="${groute(x)}" target="_blank" rel="noopener">${ICON.route} Rota</a>
+      <a class="act" href="${waze(x)}" target="_blank" rel="noopener">${ICON.waze} Waze</a>
+      ${typeof L!=="undefined" ? `<button type="button" class="act" data-fly="${esc(x.id)}" title="Mostrar no mapa desta página" aria-label="Mostrar no mapa">${ICON.map} Ver no mapa</button>`:""}
+    </div>
+  </article>`;
+}
+function groupLabel(x, kind){
+  if(x.h24) return "24 horas";
+  if(x.fee==="paid") return "Pagos";
+  if(x.fee==="free") return kind==="ev" ? "Grátis" : "Grátis";
+  return "Tarifa não informada";
+}
+function passes(x){
+  const f = st.filter;
+  if(f==="h24" && !x.h24) return false;
+  if(f==="paid" && x.fee!=="paid") return false;
+  if(f==="free" && x.fee!=="free") return false;
+  if(f==="fast" && !x.dc) return false;
+  if(f==="open" && !(x.ohState && x.ohState.open)) return false;
+  if(st.q){
+    const hay = norm([nameOf(x), x.t.brand, x.t.operator, x.t.network, x.network, addr(x.t)].join(" "));
+    if(!st.q.split(/\s+/).every(w => hay.includes(w))) return false;
+  }
+  return true;
+}
+function tileHtml(x){
+  const mini = [];
+  if(x.h24) mini.push('<span class="ok">24h · seg a dom</span>');
+  else if(x.ohState) mini.push(x.ohState.open ? `<span class="ok">Aberto${x.ohState.until ? " até " + x.ohState.until : ""}</span>` : `<span class="no">Fechado${x.ohState.next ? " · abre " + x.ohState.next : ""}</span>`);
+  else mini.push('<span class="gr">Horário n/i</span>');
+  mini.push(x.fee==="free" ? '<span class="cy">Recarga grátis</span>' : x.fee==="paid" ? '<span class="gold">Recarga paga</span>' : '<span class="gr">Tarifa n/i</span>');
+  if(x.parking==="paid") mini.push('<span class="gold">Estac. pago</span>');
+  if(x.parking==="free_charging" || x.parking==="free") mini.push('<span class="cy">Estac. grátis</span>');
+  if(x.dc) mini.push('<span class="no">⚡ Rápido</span>');
+  if(x.kind==="fu" && x.fuels.length) mini.push(`<span class="gr">${x.fuels.map(f=>f[0]).join(" · ")}</span>`);
+  if(x.verified) mini.push('<span class="cy">✔</span>');
+  const km = x.dist!=null ? fmtDist(x.dist) : "—";
+  return `<button type="button" class="tile" data-open="${esc(x.id)}" aria-label="${esc(nameOf(x))}, ${km}">
+    <span class="km"><b>${km}</b><small>${x.dist!=null ? "distância" : ""}</small></span>
+    <span class="info"><span class="nm" style="display:block">${esc(nameOf(x))}</span><span class="mini">${mini.join("")}</span></span>
+    <span class="go">›</span>
+  </button>`;
+}
+function renderList(kind){
+  const all = st[kind].filter(passes);
+  const box = $(kind==="ev" ? "#listEv" : "#listFu");
+  $(kind==="ev" ? "#cntEv" : "#cntFu").textContent = all.length;
+  $(kind==="ev" ? "#tcEv" : "#tcFu").textContent = `(${all.length})`;
+  const near = all.length && all[0].dist!=null ? ` · mais perto a <b>${fmtDist(all[0].dist)}</b>` : "";
+  $(kind==="ev" ? "#subEv" : "#subFu").innerHTML = all.length ? `${all.length===1 ? "1 local" : all.length + " locais"}${near}` : "nenhum local nesta busca";
+  all.forEach(x => st.byId.set(x.id, x));
+  if(!all.length){
+    box.innerHTML = kind==="ev"
+      ? '<div class="empty" style="margin-top:12px"><b>Nenhum eletroposto encontrado</b>Tente aumentar o raio, buscar pela cidade ou remover filtros.</div>'
+      : '<div class="empty" style="margin-top:12px"><b>Nenhum posto de combustível com recarga encontrado</b>Nesta área, a recarga aparece só em eletropostos (lista 1) ou ainda não foi cadastrada.</div>';
+    return;
+  }
+  const n = st.shown[kind];
+  const ref = $("#placeName").textContent;
+  let html = `<div class="rank">${kind==="fu" ? "Postos com gasolina, etanol ou diesel <b>e</b> recarga elétrica. " : ""}Ordem: do mais próximo ao mais distante de <b>${esc(ref)}</b>. Toque num posto para ver todos os detalhes.</div>`;
+  html += `<div class="tiles">${all.slice(0, n).map(tileHtml).join("")}</div>`;
+  if(all.length > n) html += `<button type="button" class="btn more" data-more="${kind}">Mostrar mais ${Math.min(PAGE, all.length-n)} de ${all.length-n} restantes</button>`;
+  box.innerHTML = html;
+}
+function openDetail(id){
+  const x = st.byId.get(id); if(!x) return;
+  $("#modalTitle").textContent = x.kind==="fu" ? "Posto de combustível + recarga" : "Eletroposto";
+  $("#modalBody").innerHTML = cardHtml(x);
+  const m = $("#modal"); m.hidden = false; document.body.style.overflow = "hidden";
+  const xb = m.querySelector(".xbtn"); if(xb) xb.focus();
+}
+function closeDetail(){ $("#modal").hidden = true; document.body.style.overflow = ""; }
+function renderAll(){ st.byId = new Map(); renderList("ev"); renderList("fu"); renderMap(); }
+
+/* ================= Map ================= */
+function ensureMap(){
+  if(st.map || typeof L==="undefined") return;
+  st.map = L.map("map", {scrollWheelZoom:false, preferCanvas:true});
+  const esri = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+    attribution:'Mapa &copy; Esri, HERE, Garmin, OpenStreetMap', maxZoom:19
+  }).addTo(st.map);
+  let tileErr = 0;
+  esri.on("tileerror", () => {            // se o mapa da Esri falhar, troca pelo OpenStreetMap
+    if(++tileErr === 4){ st.map.removeLayer(esri);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:'&copy; OpenStreetMap', maxZoom:19}).addTo(st.map); }
+  });
+  st.layer = L.layerGroup().addTo(st.map);
+}
+function renderMap(){
+  if(!st.map) return;
+  st.layer.clearLayers(); st.markers.clear();
+  const pts = [];
+  [["ev","#2ef59a"],["fu","#ffb020"]].forEach(([k,col]) => {
+    st[k].filter(passes).forEach(x => {
+      const m = L.circleMarker([x.lat,x.lon], {radius:7, color:"#0a0d12", weight:2, fillColor:col, fillOpacity:.95});
+      m.on("click", () => openDetail(x.id));
+      m.bindTooltip(esc(nameOf(x)));
+      if(false) m.bindPopup(`<b>${esc(nameOf(x))}</b><br>${x.h24?"24 horas · ":""}${x.fee==="paid"?"Pago":x.fee==="free"?"Grátis":"Tarifa não informada"}<br><a href="${gmaps(x)}" target="_blank" rel="noopener">Abrir no Google Maps</a> · <a href="${groute(x)}" target="_blank" rel="noopener">Rota</a>`);
+      m.addTo(st.layer); st.markers.set(x.id, m); pts.push([x.lat,x.lon]);
+    });
+  });
+  if(st.center){
+    L.circleMarker([st.center.lat, st.center.lon], {radius:6, color:"#38d9ff", weight:3, fillColor:"#0a0d12", fillOpacity:1}).bindTooltip("Ponto da busca").addTo(st.layer);
+    pts.push([st.center.lat, st.center.lon]);
+  }
+  if(pts.length) st.map.fitBounds(pts, {padding:[30,30], maxZoom:15});
+}
+$("#maptoggle").addEventListener("click", toggleMap);
+$("#maptoggle").addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleMap(); } });
+function toggleMap(){
+  const box = $("#mapbox"); const open = !box.classList.contains("open");
+  box.classList.toggle("open", open); $("#maptoggle").setAttribute("aria-expanded", open); $("#mapArrow").textContent = open ? "▴" : "▾";
+  if(open){ ensureMap(); setTimeout(()=>{ st.map && st.map.invalidateSize(); renderMap(); renderList("ev"); renderList("fu"); }, 60); }
+}
+
+/* ================= Events ================= */
+document.addEventListener("click", e => {
+  const tg = e.target.closest("[data-toggle]");
+  if(tg){ const col = $("#" + tg.dataset.toggle); const open = !col.classList.contains("open"); col.classList.toggle("open", open); tg.setAttribute("aria-expanded", open); tg.querySelector(".chev .cl").textContent = open ? "Fechar lista " : "Ver lista "; return; }
+  const op = e.target.closest("[data-open]");
+  if(op){ openDetail(op.dataset.open); return; }
+  if(e.target.closest("[data-close]")){ closeDetail(); return; }
+  const more = e.target.closest("[data-more]");
+  if(more){ const k = more.dataset.more; st.shown[k] += PAGE; renderList(k); return; }
+  const fly = e.target.closest("[data-fly]");
+  if(fly && typeof L!=="undefined"){
+    closeDetail();
+    const wasOpen = $("#mapbox").classList.contains("open");
+    if(!wasOpen) toggleMap();
+    setTimeout(() => {
+      const m = st.markers.get(fly.dataset.fly);
+      if(m && st.map){ $("#mapbox").scrollIntoView({behavior:"smooth", block:"start"}); st.map.setView(m.getLatLng(), 16); m.openTooltip(); }
+    }, wasOpen ? 0 : 250);
+  }
+});
+$("#filters").addEventListener("click", e => {
+  const c = e.target.closest(".chip"); if(!c) return;
+  st.filter = c.dataset.f;
+  document.querySelectorAll("#filters .chip").forEach(b => b.setAttribute("aria-pressed", b===c));
+  st.shown = {ev:PAGE, fu:PAGE}; renderAll();
+});
+let qT; $("#qf").addEventListener("input", e => { clearTimeout(qT); qT = setTimeout(()=>{ st.q = norm(e.target.value.trim()); st.shown={ev:PAGE,fu:PAGE}; renderAll(); }, 200); });
+$("#tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-t]"); if(!b) return;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x===b));
+  $("#colEv").classList.toggle("on", b.dataset.t==="ev");
+  $("#colFu").classList.toggle("on", b.dataset.t==="fu");
+});
+
+function showSkeleton(){
+  $("#intro").classList.add("hide");
+  $("#cols").classList.add("show"); $("#tabs").classList.add("show");
+  const sk = '<div class="list">' + '<div class="sk"></div>'.repeat(3) + '</div>';
+  $("#listEv").innerHTML = sk; $("#listFu").innerHTML = sk;
+  $("#cntEv").textContent = "…"; $("#cntFu").textContent = "…";
+}
+
+let busy = false;
+let lastScope = null, runSeq = 0;
+async function run(scopePromise, forceLive){
+  if(busy) return; busy = true; $("#go").disabled = true;
+  try{
+    const scope = await scopePromise;
+    showSkeleton();
+    $("#placeName").textContent = scope.label; $("#placeSub").textContent = scope.sub || "";
+    $("#reshead").classList.add("show");
+    lastScope = scope;
+    const myRun = ++runSeq;
+    const pl = (n, a, b) => n + " " + (n===1 ? a : b);
+    const show = (elements) => {
+      const r = classify(elements, scope.center, scope);
+      if(myRun !== runSeq) return r;
+      Object.assign(st, {ev:r.ev, fu:r.fu, center: scope.center, shown:{ev:PAGE, fu:PAGE}});
+      if(typeof L!=="undefined") $("#mapbox").classList.add("show");
+      renderAll(); return r;
+    };
+    const summary = (r, modo) => {
+      const tot = r.ev.length + r.fu.length;
+      return tot ? `${pl(tot,"local encontrado","locais encontrados")}: ${pl(r.ev.length,"só elétrico","só elétricos")} e ${pl(r.fu.length,"posto de combustível com recarga","postos de combustível com recarga")} · ${modo}.`
+                 : `Nenhum ponto de recarga cadastrado nesta área (${modo}). Tente ampliar o raio ou buscar pela cidade.`;
+    };
+    const base = forceLive ? null : await getBase();
+    let res, modo, extra = "";
+    if(base){
+      setStatus("Filtrando a base Brasil…", "load");
+      res = show(filterBase(base.elements, scope));
+      modo = "base de " + fmtDataHora(base.meta.atualizado_em);
+    } else {
+      const key = getOcmKey();
+      const tmo = scope.kind==="state" ? 180000 : scope.kind==="area" ? 90000 : 45000;
+      const t0 = Date.now(); let srv = 1;
+      const got = {osm:null, ocm:null}, fail = {};
+      const label = scope.kind==="state" ? "Varrendo o estado inteiro ao vivo" : "Varrendo eletropostos ao vivo";
+      const tick = () => {
+        const parts = ["OpenStreetMap: " + (got.osm ? pl(got.osm.length,"item","itens") : fail.osm ? "sem resposta" : `consultando (servidor ${srv})`)];
+        if(key) parts.push("Open Charge Map: " + (got.ocm ? pl(got.ocm.length,"ponto","pontos") : fail.ocm ? "sem resposta" : "consultando"));
+        setStatus(`${label}… ${Math.round((Date.now()-t0)/1000)}s · ${parts.join(" · ")} <button type="button" class="btn sm" id="cancelBtn" style="margin-left:8px">Cancelar</button>`, "load");
+      };
+      tick(); const iv = setInterval(tick, 1000);
+      const pOsm = overpass(buildQuery(scope), tmo, n => { srv = n; })
+        .then(d => { got.osm = d.elements || []; got.osmServer = d.__server; show(mergeSources(got.osm, got.ocm)); })
+        .catch(e => { fail.osm = e; if(e.cancelled) throw e; });
+      const pOcm = key ? fetchOcm(scope, key)
+        .then(els => { got.ocm = els; if(!fail.cancel) show(mergeSources(got.osm, got.ocm)); })
+        .catch(e => { fail.ocm = e; }) : Promise.resolve();
+      try{ await Promise.all([pOsm, pOcm]); }
+      finally{ clearInterval(iv); }
+      if(got.osm === null && got.ocm === null){
+        if(fail.ocm && fail.ocm.badKey) throw fail.ocm;
+        throw fail.osm || fail.ocm || new Error("Sem resposta dos serviços de mapa.");
+      }
+      res = show(mergeSources(got.osm, got.ocm));
+      const h = new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+      const fontes = [];
+      if(got.osm) fontes.push("OpenStreetMap"); if(got.ocm) fontes.push("Open Charge Map");
+      modo = "ao vivo às " + h + " · fontes: " + fontes.join(" + ");
+      if(!key) extra = ' <button type="button" class="btn sm" id="cfgHint" style="margin-left:6px">⚡ Ver mais eletropostos: ativar Open Charge Map (grátis)</button>';
+      else if(fail.ocm) extra = " · Open Charge Map não respondeu" + (fail.ocm.badKey ? " (chave recusada)" : "") + ".";
+      if(got.ocm && !got.osm) extra += " · OpenStreetMap sem resposta (resultado só do Open Charge Map).";
+    }
+    const totR = res.ev.length + res.fu.length;
+    const widen = {2000:5000, 5000:10000, 10000:20000, 20000:50000}[scope.radius];
+    if(scope.kind==="around" && totR < 3 && widen) extra += ` <button type="button" class="btn sm" id="widenBtn" data-r="${widen}" style="margin-left:6px">🔎 Ampliar para ${widen/1000} km</button>`;
+    setStatus(summary(res, modo) + extra);
+    if(!NATIVO){ try{ history.replaceState(null, "", shareUrl()); }catch(_){} }
+    try{ localStorage.setItem("rotavolt:last", JSON.stringify({cep:$("#cep").value, bairro:$("#bairro").value, cidade:$("#cidade").value, uf:ufSel.value, r:$("#radius").value})); }catch(_){}
+    if(window.matchMedia("(max-width:860px)").matches) $("#reshead").scrollIntoView({behavior:"smooth"});
+  }catch(err){
+    console.error(err);
+    const msg = err.cancelled ? "Busca cancelada." : err.mapDown ? err.message + ' Tente de novo em instantes. <button type="button" class="btn sm" id="retryBtn" style="margin-left:8px">Tentar de novo</button>' :
+                err.name==="AbortError" ? "O servidor de mapas demorou demais para responder. Tente novamente ou reduza a área (ex.: cidade em vez de estado)." :
+                /Failed to fetch|NetworkError|Load failed/i.test(err.message) ? "Sem conexão com os serviços de mapa. Verifique a internet e tente novamente." : err.message;
+    const net = err.mapDown || err.name==="AbortError" || /Failed to fetch|NetworkError|Load failed/i.test(err.message);
+    setStatus(msg + (net ? ' <button type="button" class="btn sm" id="demoBtn" style="margin-left:8px">Ver como fica (exemplo ilustrativo)</button>' : ""), "err");
+    if(!st.ev.length && !st.fu.length){ $("#cols").classList.remove("show"); $("#tabs").classList.remove("show"); $("#reshead").classList.remove("show"); $("#intro").classList.remove("hide"); }
+  }finally{ busy = false; $("#go").disabled = false; }
+}
+
+$("#form").addEventListener("submit", e => { e.preventDefault(); run(resolveScope()); });
+
+$("#geo").addEventListener("click", () => {
+  if(!navigator.geolocation){ setStatus("Seu navegador não permite localização. Use o CEP.", "err"); return; }
+  setStatus("Obtendo sua localização…","load");
+  navigator.geolocation.getCurrentPosition(p => {
+    const radius = +$("#radius").value;
+    run(Promise.resolve({kind:"around", center:{lat:p.coords.latitude, lon:p.coords.longitude}, radius, label:"Perto de você", sub:`raio de ${radius/1000} km`}));
+  }, () => setStatus("Não foi possível obter sua localização (permissão negada ou indisponível). Use o CEP.", "err"), {enableHighAccuracy:true, timeout:12000});
+});
+
+// ---------- exemplo ilustrativo (só quando não há internet para os mapas) ----------
+document.addEventListener("click", e => {
+  if(e.target.closest("#cancelBtn")){ cancelSearch(); return; }
+  const wb = e.target.closest("#widenBtn");
+  if(wb && lastScope){ const r = +wb.dataset.r; $("#radius").value = String(r); run(Promise.resolve(Object.assign({}, lastScope, {radius:r, sub:(lastScope.sub||"").replace(/raio de [\d,.]+ km/, "raio de " + r/1000 + " km")})), false); return; }
+  if(e.target.closest("#retryBtn")){ if(lastScope) run(Promise.resolve(lastScope), true); return; }
+  if(!e.target.closest("#demoBtn")) return;
+  const c = {lat:-19.936, lon:-43.935};
+  const T = (o) => Object.assign({amenity:"charging_station"}, o);
+  const els = [
+    {type:"node",id:1,lat:-19.938,lon:-43.936,tags:T({name:"Exemplo · Shopping (24h, pago)",network:"Rede Exemplo",opening_hours:"24/7",fee:"yes","socket:type2_combo":"2","socket:type2_combo:output":"60 kW","socket:type2":"2","addr:street":"Avenida Exemplo","addr:housenumber":"100","addr:city":"Cidade Exemplo"})},
+    {type:"node",id:2,lat:-19.940,lon:-43.933,tags:T({name:"Exemplo · Praça (24h, grátis)",opening_hours:"24/7",fee:"no","socket:type2":"1"})},
+    {type:"node",id:3,lat:-19.930,lon:-43.940,tags:T({name:"Exemplo · Estacionamento (pago)",fee:"yes",opening_hours:"Mo-Sa 08:00-22:00","socket:chademo":"1","socket:type2_combo":"1"})},
+    {type:"node",id:4,lat:-19.935,lon:-43.925,tags:T({name:"Exemplo · Supermercado (grátis)",fee:"no",access:"customers","socket:type2":"2"})},
+    {type:"node",id:10,lat:-19.932,lon:-43.938,tags:{amenity:"fuel",name:"Exemplo · Posto 24h com recarga",brand:"Bandeira Exemplo",opening_hours:"24/7","fuel:octane_95":"yes","fuel:ethanol":"yes","fuel:diesel":"yes","addr:street":"Rua Exemplo","addr:housenumber":"1000"}},
+    {type:"node",id:11,lat:-19.93205,lon:-43.93805,tags:T({network:"Recarga Exemplo",fee:"yes","socket:type2_combo":"2","socket:type2_combo:output":"150 kW"})},
+    {type:"node",id:12,lat:-19.928,lon:-43.932,tags:{amenity:"fuel",name:"Exemplo · Posto com recarga (pago)","fuel:electricity":"yes","fuel:octane_91":"yes","fuel:e100":"yes","socket:type2":"1",fee:"yes"}}
+  ];
+  const res = classify(els, c);
+  Object.assign(st, {ev:res.ev, fu:res.fu, center:c, shown:{ev:PAGE, fu:PAGE}});
+  showSkeleton();
+  $("#placeName").textContent = "EXEMPLO ILUSTRATIVO — não são postos reais";
+  $("#placeSub").textContent = "Mostra o visual e a ordenação. Para dados reais, abra o arquivo no Chrome, Safari ou Edge.";
+  $("#reshead").classList.add("show");
+  renderAll();
+  setStatus("Exemplo ilustrativo carregado. As buscas reais precisam de acesso à internet aos serviços de mapa.");
+});
+
+// ---------- Autocompletar: bairro → cidade → estado ----------
+let MUNI = null, muniPromise = null;
+function loadMunicipios(){
+  if(MUNI) return Promise.resolve(MUNI);
+  if(muniPromise) return muniPromise;
+  try{
+    const c = JSON.parse(localStorage.getItem("rotavolt:muni") || "null");
+    if(c && c.v===1 && Array.isArray(c.d) && c.d.length > 5000){ MUNI = c.d.map(([n,u]) => ({n, u, k:norm(n)})); return Promise.resolve(MUNI); }
+  }catch(_){}
+  muniPromise = fetchJSON("https://servicodados.ibge.gov.br/api/v1/localidades/municipios?view=nivelado", {}, 30000).then(list => {
+    const d = list.map(m => [m["municipio-nome"], m["UF-sigla"]]);
+    try{ localStorage.setItem("rotavolt:muni", JSON.stringify({v:1, d})); }catch(_){}
+    MUNI = d.map(([n,u]) => ({n, u, k:norm(n)})); return MUNI;
+  }).catch(e => { muniPromise = null; throw e; });
+  return muniPromise;
+}
+function makeAC(input, box, source, onPick){
+  let items = [], hl = -1, timer = null, seq = 0;
+  const close = () => { box.hidden = true; hl = -1; };
+  const render = (list, msg) => {
+    items = list;
+    if(!list.length){ box.innerHTML = msg ? `<div class="acmsg">${msg}</div>` : ""; box.hidden = !msg; return; }
+    box.innerHTML = list.map((it,i) => `<button type="button" data-i="${i}" class="${i===hl ? "hl" : ""}"><span>${esc(it.label)}</span><small>${esc(it.side || "")}</small></button>`).join("");
+    box.hidden = false;
+  };
+  const update = () => {
+    const q = input.value.trim(), my = ++seq;
+    if(q.length < source.min){ close(); items = []; return; }
+    if(source.loading) render([], source.loading);
+    Promise.resolve(source.search(q)).then(list => { if(my !== seq) return; hl = -1; render(list, list.length ? "" : source.empty); })
+      .catch(() => { if(my === seq) render([], "Sem sugestões agora; pode continuar digitando."); });
+  };
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(update, source.delay || 150); });
+  input.addEventListener("focus", () => { if(source.warm) source.warm(); });
+  input.addEventListener("keydown", e => {
+    if(box.hidden || !items.length) return;
+    if(e.key==="ArrowDown"){ e.preventDefault(); hl = (hl+1) % items.length; render(items); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); hl = (hl-1+items.length) % items.length; render(items); }
+    else if(e.key==="Enter" && hl >= 0){ e.preventDefault(); pick(hl); }
+    else if(e.key==="Escape"){ close(); }
+  });
+  box.addEventListener("mousedown", e => e.preventDefault());
+  box.addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if(b) pick(+b.dataset.i); });
+  input.addEventListener("blur", () => setTimeout(close, 180));
+  function pick(i){ const it = items[i]; if(!it) return; onPick(it); close(); items = []; markActive(); }
+  return {close};
+}
+// Bairro: sugestões do Photon (feito para busca enquanto se digita), com cidade e estado
+const BAIRRO_TYPES = ["suburb","neighbourhood","quarter","city_district","borough","hamlet","village","locality","district"];
+makeAC($("#bairro"), $("#acBairro"), {
+  min:3, delay:450, loading:"Procurando bairros…", empty:"Nenhum bairro com esse nome. Confira a grafia ou use a cidade.",
+  search: async q => {
+    const r = await fetchJSON("https://photon.komoot.io/api/?q=" + encodeURIComponent(q) + "&limit=20&bbox=-74.1,-33.8,-34.7,5.4&osm_tag=place", {}, 12000);
+    const ufFilter = ufSel.value, seen = new Set(), out = [];
+    (r.features || []).forEach(f => {
+      const p = f.properties || {};
+      if(p.countrycode && p.countrycode !== "BR") return;
+      if(BAIRRO_TYPES.indexOf(p.osm_value) < 0) return;
+      const city = p.city || p.county || ""; const uf = UF_BY_NAME[norm(p.state || "")] || "";
+      if(!city || !uf || (ufFilter && uf !== ufFilter)) return;
+      const key = norm(p.name) + "|" + norm(city) + "|" + uf; if(seen.has(key)) return; seen.add(key);
+      out.push({label: p.name, side: city + " / " + uf, bairro: p.name, cidade: city, uf});
+    });
+    return out.slice(0, 12);
+  }
+}, it => { $("#bairro").value = it.bairro; $("#cidade").value = it.cidade; ufSel.value = it.uf; setStatus(`Bairro ${esc(it.bairro)} · ${esc(it.cidade)}/${it.uf}`); });
+// Cidade: lista oficial do IBGE (5.570 municípios), já com o estado
+makeAC($("#cidade"), $("#acCidade"), {
+  min:2, delay:80, loading:"Carregando a lista oficial de municípios…", empty:"Nenhum município com esse nome.",
+  warm: () => { loadMunicipios().catch(() => {}); },
+  search: async q => {
+    const list = await loadMunicipios(); const nq = norm(q), uf = ufSel.value;
+    const starts = [], has = [];
+    list.forEach(m => { if(m.k.startsWith(nq)) starts.push(m); else if(m.k.indexOf(nq) >= 0) has.push(m); });
+    const pri = m => (uf && m.u === uf ? 0 : 1);
+    const sorted = starts.sort((a,b) => pri(a)-pri(b) || a.n.length-b.n.length || a.n.localeCompare(b.n)).concat(has.sort((a,b) => pri(a)-pri(b) || a.n.localeCompare(b.n)));
+    const seen = new Set();
+    return sorted.filter(m => { const k = m.k + "|" + m.u; if(seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 12).map(m => ({label: m.n, side: (UF_NAME[m.u] || m.u) + " / " + m.u, cidade: m.n, uf: m.u}));
+  }
+}, it => { $("#cidade").value = it.cidade; ufSel.value = it.uf; setStatus(`Cidade ${esc(it.cidade)} · estado ${esc(UF_NAME[it.uf])} (${it.uf}) preenchido automaticamente.`); });
+// Se digitar a cidade e sair do campo sem escolher: preenche o estado quando o nome é único
+$("#cidade").addEventListener("change", () => {
+  const v = norm($("#cidade").value.trim()); if(!v || ufSel.value) return;
+  loadMunicipios().then(list => { const m = list.filter(x => x.k === v); if(m.length === 1){ ufSel.value = m[0].u; markActive(); } }).catch(() => {});
+});
+$("#bairro").addEventListener("focus", () => loadMunicipios().catch(() => {}), {once:true});
+
+// ---------- App Android: botão voltar fecha janela/listas antes de sair ----------
+if(NATIVO){
+  document.documentElement.classList.add("nativo");
+  if(!BASE_REMOTA){ const sb = $("#share"); if(sb) sb.hidden = true; }
+  const AppPl = window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if(AppPl && AppPl.addListener){
+    AppPl.addListener("backButton", () => {
+      if(!$("#modal").hidden){ closeDetail(); return; }
+      if(!$("#cfg").hidden){ toggleCfg(false); return; }
+      const ab = document.querySelector(".ac:not([hidden])"); if(ab){ ab.hidden = true; return; }
+      const open = document.querySelectorAll(".col.open");
+      if(open.length){ open.forEach(c => { c.classList.remove("open"); const h = c.querySelector(".colhead"); h.setAttribute("aria-expanded","false"); h.querySelector(".cl").textContent = "Ver lista "; }); return; }
+      if(window.scrollY > 200){ window.scrollTo({top:0, behavior:"smooth"}); return; }
+      AppPl.exitApp();
+    });
+  }
+}
+
+// ---------- configuração das fontes ----------
+$("#cfgBtn").addEventListener("click", () => toggleCfg());
+$("#pillOcm").addEventListener("click", () => toggleCfg(true));
+$("#pillOcm").addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleCfg(true); } });
+document.addEventListener("click", e => { if(e.target.closest("#cfgHint")) toggleCfg(true); });
+document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("#modal").hidden) closeDetail(); });
+$("#ocmSave").addEventListener("click", () => {
+  const v = $("#ocmKey").value.trim();
+  if(!/^[A-Za-z0-9-]{16,}$/.test(v)){ $("#ocmMsg").innerHTML = '<span style="color:var(--red)">Essa chave não parece válida. Copie a chave inteira do Open Charge Map.</span>'; return; }
+  try{ localStorage.setItem("rotavolt:ocm", v); }catch(_){}
+  refreshOcmUi(); $("#ocmMsg").innerHTML = '<span style="color:var(--ev)">Chave salva. Faça a busca de novo.</span>';
+});
+$("#ocmClear").addEventListener("click", () => { try{ localStorage.removeItem("rotavolt:ocm"); }catch(_){} refreshOcmUi(); $("#ocmMsg").textContent = "Chave removida."; });
+
+// ---------- link compartilhável ----------
+function shareUrl(){
+  const p = new URLSearchParams();
+  const cep = $("#cep").value.replace(/\D/g,""), b = $("#bairro").value.trim(), c = $("#cidade").value.trim(), u = ufSel.value;
+  const lv = level();
+  if(lv==="cep" && cep) p.set("cep", cep);
+  else { if(b) p.set("bairro", b); if(c) p.set("cidade", c); if(u) p.set("uf", u); }
+  if((lv==="cep" || lv==="bairro") && $("#radius").value!=="5000") p.set("raio", $("#radius").value);
+  const q = p.toString();
+  if(NATIVO) return (BASE_REMOTA || "https://openchargemap.org/") + (BASE_REMOTA && q ? "?" + q : "");
+  return location.origin==="null" || location.protocol==="file:" ? location.href.split("?")[0] + (q?"?"+q:"") : location.origin + location.pathname + (q?"?"+q:"");
+}
+$("#share").addEventListener("click", async () => {
+  const url = shareUrl();
+  try{ await navigator.clipboard.writeText(url); setStatus("Link copiado! Envie para quem quiser: " + esc(url)); }
+  catch(_){
+    const ta = document.createElement("textarea"); ta.value = url; ta.setAttribute("readonly",""); ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, url.length);
+    let ok=false; try{ ok = document.execCommand("copy"); }catch(__){}
+    document.body.removeChild(ta);
+    setStatus(ok ? "Link copiado! " + esc(url) : "Copie este link: " + esc(url));
+  }
+});
+$("#live").addEventListener("click", () => { if(lastScope) run(Promise.resolve(lastScope), true); });
+
+// ---------- lista oficial de municípios (IBGE) ----------
+const ibgeCache = {};
+async function loadCidades(uf){
+  const dl = $("#dlCidades"); dl.innerHTML = "";
+  if(!uf) return;
+  try{
+    const list = ibgeCache[uf] || (ibgeCache[uf] = await fetchJSON(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`, {}, 15000));
+    dl.innerHTML = list.map(m => `<option value="${esc(m.nome)}">`).join("");
+  }catch(_){ /* sem sugestões, a busca funciona igual */ }
+}
+ufSel.addEventListener("change", () => loadCidades(ufSel.value));
+
+// restore last search
+try{
+  const l = JSON.parse(localStorage.getItem("rotavolt:last")||"null");
+  if(l){ $("#cep").value=l.cep||""; $("#bairro").value=l.bairro||""; $("#cidade").value=l.cidade||""; ufSel.value=l.uf||""; if(l.r) $("#radius").value=l.r; }
+}catch(_){}
+// parâmetros do link (?cep=, ?bairro=, ?cidade=, ?uf=, ?raio=)
+let autoRun = false;
+try{
+  const qp = new URLSearchParams(location.search);
+  if(["cep","bairro","cidade","uf"].some(k => qp.get(k))){
+    $("#cep").value = (qp.get("cep")||"").replace(/\D/g,"").replace(/^(\d{5})(\d{1,3})$/,"$1-$2");
+    $("#bairro").value = qp.get("bairro")||""; $("#cidade").value = qp.get("cidade")||"";
+    ufSel.value = (qp.get("uf")||"").toUpperCase();
+    if(qp.get("raio") && [...$("#radius").options].some(o=>o.value===qp.get("raio"))) $("#radius").value = qp.get("raio");
+    autoRun = true;
+  }
+}catch(_){}
+markActive();
+loadMeta();
+refreshOcmUi();
+if(!canUseBase) $("#live").hidden = true;
+if(ufSel.value) loadCidades(ufSel.value);
+if(autoRun) run(resolveScope());
+
+// expose for tests
+window.__rv = {classify, buildQuery, is24, feeOf, filterBase, makeGeoTest};
+})();
+</script>
+</body>
+</html>

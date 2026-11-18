@@ -1,0 +1,21 @@
+{
+  "appId": "com.hocconsultoria.hocvoltbr",
+  "appName": "HOCVOLTBR",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#06132b",
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}

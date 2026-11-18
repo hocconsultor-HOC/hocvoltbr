@@ -1,0 +1,16 @@
+{
+  "name": "hocvoltbr-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HOCVOLTBR — app Android (Capacitor) com o mesmo layout do site",
+  "scripts": {
+    "copiar-site": "node scripts/copiar-site.js",
+    "sync": "npm run copiar-site && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2"
+  }
+}

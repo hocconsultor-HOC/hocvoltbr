@@ -1,0 +1,15 @@
+# gerados automaticamente (não enviar ao GitHub)
+app/node_modules/
+app/www/
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/capacitor-cordova-android-plugins/build/
+_site/
+# NUNCA enviar a chave de assinatura
+*.jks
+*.keystore
+
+# Python
+__pycache__/
+*.pyc

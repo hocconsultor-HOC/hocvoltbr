@@ -1,0 +1,95 @@
+# HOCVOLTBR — monta o aplicativo Android a partir do site.
+# Gera: HOCVOLTBR.apk (instalar direto no celular) e HOCVOLTBR-GooglePlay.aab (enviar ao Google Play).
+name: App Android (APK e AAB)
+
+on:
+  workflow_dispatch:            # botão "Run workflow" para montar na hora
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "index.html"
+      - "icons/**"
+      - ".github/workflows/app-android.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-android
+  cancel-in-progress: true
+
+jobs:
+  montar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Preparar ferramentas Android (aceita as licenças)
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar dependências do app
+        working-directory: app
+        run: npm ci
+
+      - name: Copiar o site para dentro do app
+        working-directory: app
+        env:
+          RV_BASE_REMOTA: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          RV_OCM_KEY: ${{ secrets.OCM_KEY }}
+        run: npm run sync
+
+      - name: Preparar a chave de assinatura (se cadastrada nos secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/rotavolt-upload.jks"
+            echo "RV_KEYSTORE=$RUNNER_TEMP/rotavolt-upload.jks" >> "$GITHUB_ENV"
+            echo "Chave encontrada: será gerada a versão assinada para o Google Play."
+          else
+            echo "Sem chave nos secrets: será gerada só a versão de teste (APK)."
+          fi
+
+      - name: Montar o aplicativo
+        working-directory: app/android
+        env:
+          RV_STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RV_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RV_KEY_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -n "$RV_KEYSTORE" ]; then
+            ./gradlew --no-daemon assembleRelease bundleRelease
+          else
+            ./gradlew --no-daemon assembleDebug
+          fi
+
+      - name: Organizar os arquivos para download
+        run: |
+          mkdir -p saida
+          if [ -f app/android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/android/app/build/outputs/apk/release/app-release.apk saida/HOCVOLTBR.apk
+          else
+            cp app/android/app/build/outputs/apk/debug/app-debug.apk saida/HOCVOLTBR-teste.apk
+          fi
+          if [ -f app/android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp app/android/app/build/outputs/bundle/release/app-release.aab saida/HOCVOLTBR-GooglePlay.aab
+          fi
+          ls -la saida
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HOCVOLTBR-app-android
+          path: saida/
+          retention-days: 30
