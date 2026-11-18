@@ -2,8 +2,10 @@
 """
 HOCVOLTBR — atualização diária da base Brasil de eletropostos.
 
-Varre os 27 estados no OpenStreetMap (Overpass API) e, se houver chave,
-soma os pontos do Open Charge Map. Gera:
+Fonte principal: o mapa completo do Brasil no OpenStreetMap (arquivo diário da Geofabrik,
+filtrado pelo osmium no GitHub Actions; variável OSM_GEOJSONSEQ). Se ele faltar, varre os
+27 estados pela Overpass API. Se houver chave, soma os pontos do Open Charge Map. O estado
+de cada ponto vem da malha oficial do IBGE. Gera:
   data/brasil.json  -> todos os pontos (eletropostos + postos de combustível com recarga)
   data/meta.json    -> data/hora da atualização e totais
 
@@ -11,9 +13,10 @@ Regras de segurança:
   - Se um estado falhar em todas as tentativas, mantém os dados de ontem desse estado.
   - Se TODOS os estados falharem, não sobrescreve nada e sai com erro.
 
-Só usa a biblioteca padrão do Python (sem pip install).
+Só usa a biblioteca padrão do Python; se o pacote shapely estiver instalado, fica mais rápido.
 Variáveis de ambiente opcionais:
   OCM_KEY        chave gratuita do Open Charge Map (openchargemap.org)
+  OSM_GEOJSONSEQ arquivo do osmium export (-f geojsonseq -u type_id)
   OVERPASS_URL   força um servidor Overpass específico (testes)
   OCM_URL        força um endereço do Open Charge Map (testes)
 """
@@ -58,10 +61,162 @@ def norm(s):
     s = unicodedata.normalize("NFD", str(s or "")).encode("ascii", "ignore").decode()
     return s.lower().strip()
 
-def http_json(url, data=None, timeout=160):
-    req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, "Accept": "application/json"})
+def http_json(url, data=None, timeout=160, accept="application/json"):
+    req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, "Accept": accept})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
+
+# ---------- Fonte principal: mapa do Brasil (Geofabrik) filtrado pelo osmium ----------
+def _parse_id(fid):
+    """'n123' -> ('node',123); 'w5' -> ('way',5); 'a20' -> área: par = via (10), ímpar = relação."""
+    if not fid or len(fid) < 2 or not fid[1:].isdigit():
+        return None, None
+    p, n = fid[0], int(fid[1:])
+    if p == "n": return "node", n
+    if p == "w": return "way", n
+    if p == "r": return "relation", n
+    if p == "a": return ("way", n // 2) if n % 2 == 0 else ("relation", (n - 1) // 2)
+    return None, None
+
+def _geom_center(g):
+    if not g:
+        return None, None
+    t, c = g.get("type"), g.get("coordinates")
+    try:
+        if t == "Point":
+            return c[1], c[0]
+        if t == "LineString":
+            pts = c[:-1] if len(c) > 2 and c[0] == c[-1] else c
+        elif t == "Polygon":
+            pts = c[0][:-1] or c[0]
+        elif t == "MultiPolygon":
+            ring = max((p[0] for p in c), key=len)
+            pts = ring[:-1] or ring
+        else:
+            return None, None
+        return sum(p[1] for p in pts) / len(pts), sum(p[0] for p in pts) / len(pts)
+    except Exception:
+        return None, None
+
+VENUE_SHOPS = {"mall", "supermarket", "department_store"}
+
+def osm_from_geojsonseq(path):
+    """Lê o arquivo gerado por `osmium export -f geojsonseq -u type_id`."""
+    out, seen = [], set()
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip().lstrip("\x1e").strip()
+            if not line:
+                continue
+            try:
+                ft = json.loads(line)
+            except Exception:
+                continue
+            t = ft.get("properties") or {}
+            a, s = t.get("amenity"), t.get("shop")
+            if a in ("charging_station", "fuel"):
+                pass
+            elif (a == "parking" or s in VENUE_SHOPS) and t.get("opening_hours"):
+                pass
+            else:
+                continue
+            typ, num = _parse_id(str(ft.get("id") or ""))
+            if not typ:
+                continue
+            k = f"{typ}/{num}"
+            if k in seen:
+                continue
+            lat, lon = _geom_center(ft.get("geometry"))
+            if lat is None or not (-35 < lat < 6.5 and -75 < lon < -28):
+                continue
+            seen.add(k)
+            out.append({"type": typ, "id": num, "lat": round(lat, 6), "lon": round(lon, 6),
+                        "tags": keep_tags(t), "uf": None})
+    return out
+
+# ---------- Estado (UF) de cada ponto: malha oficial do IBGE ----------
+IBGE_UF = {"11":"RO","12":"AC","13":"AM","14":"RR","15":"PA","16":"AP","17":"TO","21":"MA","22":"PI",
+           "23":"CE","24":"RN","25":"PB","26":"PE","27":"AL","28":"SE","29":"BA","31":"MG","32":"ES",
+           "33":"RJ","35":"SP","41":"PR","42":"SC","43":"RS","50":"MS","51":"MT","52":"GO","53":"DF"}
+
+def _in_ring(x, y, ring):
+    inside, j = False, len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+class UFLocator:
+    """Descobre o estado de cada ponto pela malha do IBGE (shapely se houver; senão cálculo simples)."""
+    def __init__(self):
+        self.feats = None
+        for q in ("intermediaria", "minima"):
+            try:
+                url = ("https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo%2Bjson"
+                       f"&intrarregiao=UF&qualidade={q}")
+                d = http_json(url, timeout=180, accept="application/vnd.geo+json, application/json")
+                feats = []
+                for f in d.get("features", []):
+                    uf = IBGE_UF.get(str((f.get("properties") or {}).get("codarea", ""))[:2])
+                    if uf and f.get("geometry"):
+                        feats.append((uf, f["geometry"]))
+                if len({u for u, _ in feats}) >= 27:
+                    self.feats = feats
+                    print(f"Malha dos estados (IBGE, {q}) carregada.", flush=True)
+                    break
+            except Exception as ex:  # noqa
+                print(f"Malha IBGE ({q}) indisponível: {ex}", flush=True)
+        self.ok = self.feats is not None
+        self.shp = None
+        if self.ok:
+            try:
+                import shapely
+                from shapely.geometry import shape
+                self.shp = shapely
+                self.geoms = [shape(g) for _, g in self.feats]
+                self.ufs = [u for u, _ in self.feats]
+                self.tree = shapely.STRtree(self.geoms)
+            except Exception:
+                self.shp = None
+                self.polys = []
+                for uf, g in self.feats:
+                    polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+                    for p in polys:
+                        xs = [c[0] for c in p[0]]; ys = [c[1] for c in p[0]]
+                        self.polys.append((uf, (min(xs), min(ys), max(xs), max(ys)), p[0], p[1:]))
+
+    def locate(self, pts):
+        """pts = [(lat, lon), ...] -> [uf, ...]"""
+        if not self.ok or not pts:
+            return [None] * len(pts)
+        if self.shp is not None:
+            sh = self.shp
+            P = sh.points([(lo, la) for la, lo in pts])
+            res = [None] * len(pts)
+            idx_in, idx_tree = self.tree.query(P, predicate="within")
+            for i, t in zip(idx_in.tolist(), idx_tree.tolist()):
+                if res[i] is None:
+                    res[i] = self.ufs[t]
+            falt = [i for i, r in enumerate(res) if r is None]
+            if falt:  # no litoral/ilhas: estado mais próximo
+                ii, tt = self.tree.query_nearest(P[falt])
+                for a_, t in zip(ii.tolist(), tt.tolist()):
+                    res[falt[a_]] = self.ufs[t]
+            return res
+        res = []
+        for la, lo in pts:
+            achou, perto, pd = None, None, float("inf")
+            for uf, (x0, y0, x1, y1), outer, holes in self.polys:
+                if x0 <= lo <= x1 and y0 <= la <= y1:
+                    if _in_ring(lo, la, outer) and not any(_in_ring(lo, la, h) for h in holes):
+                        achou = uf; break
+                d = max(x0 - lo, 0, lo - x1) + max(y0 - la, 0, la - y1)
+                if d < pd: perto, pd = uf, d
+            res.append(achou or perto)
+        return res
 
 def overpass_uf(uf):
     # consulta leve: só o que fica junto dos carregadores (postos de combustível, shoppings, mercados, estacionamentos)
@@ -215,7 +370,26 @@ def main():
         pass
 
     vistos, elements, falhas, por_uf = set(), [], [], {}
-    for i, uf in enumerate(UFS):
+    fonte_osm = "overpass"
+    ontem_ev = sum(1 for es in anterior.values() for e in es if e["tags"].get("amenity") == "charging_station")
+
+    # 1) Fonte principal: mapa completo do Brasil (Geofabrik + osmium), sem depender do Overpass
+    gpath = os.environ.get("OSM_GEOJSONSEQ", "")
+    if gpath and os.path.exists(gpath) and os.path.getsize(gpath) > 0:
+        try:
+            geo = osm_from_geojsonseq(gpath)
+            n_ev = sum(1 for e in geo if e["tags"].get("amenity") == "charging_station")
+            print(f"Mapa do Brasil (Geofabrik): {len(geo)} elementos, {n_ev} eletropostos", flush=True)
+            if n_ev < 50 or (ontem_ev > 200 and n_ev < 0.6 * ontem_ev):
+                raise RuntimeError(f"poucos eletropostos ({n_ev}; ontem {ontem_ev})")
+            elements, fonte_osm = geo, "geofabrik"
+        except Exception as ex:
+            print(f"Mapa do Brasil indisponível ({ex}): usando Overpass.", flush=True)
+            elements = []
+    else:
+        print("Mapa do Brasil não baixado: usando Overpass.", flush=True)
+
+    for i, uf in enumerate(UFS if fonte_osm == "overpass" else []):
         print(f"[{i+1}/27] {uf}…", flush=True)
         try:
             raw = overpass_uf(uf)
@@ -294,6 +468,29 @@ def main():
     print(f"Base enxuta: {len(enxuta)} de {len(elements)} elementos", flush=True)
     elements = enxuta
 
+    # Estado (UF) de cada ponto pela malha do IBGE: pontos do mapa do Brasil e do Open Charge Map
+    precisa = [e for e in elements if e.get("uf") is None or e.get("src") == "ocm"]
+    if precisa:
+        loc = UFLocator()
+        if loc.ok:
+            for e, uf in zip(precisa, loc.locate([(e["lat"], e["lon"]) for e in precisa])):
+                if uf: e["uf"] = uf
+        else:  # sem malha hoje: usa o estado do ponto mais próximo da base de ontem (~30 km)
+            cel = {}
+            for es in anterior.values():
+                for o in es:
+                    if o.get("uf"): cel.setdefault((int(o["lat"] * 10), int(o["lon"] * 10)), o["uf"])
+            for e in precisa:
+                if e.get("uf"): continue
+                ci, cj = int(e["lat"] * 10), int(e["lon"] * 10)
+                for r in range(4):
+                    viz = [cel.get((ci + a, cj + b)) for a in range(-r, r + 1) for b in range(-r, r + 1)]
+                    viz = [v for v in viz if v]
+                    if viz:
+                        e["uf"] = max(set(viz), key=viz.count); break
+        sem = sum(1 for e in elements if not e.get("uf"))
+        print(f"Estados atribuídos: {len(precisa) - sem} de {len(precisa)} (sem estado: {sem})", flush=True)
+
     for e in elements:
         por_uf.setdefault(e.get("uf") or "?", {"eletropostos": 0, "postos_combustivel": 0})
         a_ = e["tags"].get("amenity")
@@ -309,6 +506,7 @@ def main():
         "postos_combustivel_proximos_ou_com_recarga": sum(1 for e in elements if e["tags"].get("amenity") == "fuel"),
         "open_charge_map_adicionados": ocm_add,
         "estados_com_falha_hoje": falhas,
+        "fonte_osm": "mapa completo do Brasil (Geofabrik)" if fonte_osm == "geofabrik" else "Overpass API",
         "por_uf": dict(sorted(por_uf.items())),
         "fontes": ["OpenStreetMap (ODbL)"] + (["Open Charge Map (CC BY-SA 4.0)"] if ocm_add else []),
     }

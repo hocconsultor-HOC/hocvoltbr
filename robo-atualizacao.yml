@@ -40,12 +40,32 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Varrer os 27 estados e montar a base
+      # Fonte principal: o mapa completo do Brasil (Geofabrik, atualizado diariamente a partir do OpenStreetMap).
+      # Não depende dos servidores Overpass, que vivem sobrecarregados. Se falhar, o script usa o Overpass.
+      - name: Baixar o mapa do Brasil e separar postos
+        if: ${{ !inputs.pular_varredura }}
+        continue-on-error: true
+        timeout-minutes: 40
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
+          pip install -q shapely || echo "shapely indisponível: usa cálculo simples"
+          curl -fsSL --retry 3 --retry-delay 20 -o /tmp/brasil.osm.pbf \
+            https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
+          ls -la /tmp/brasil.osm.pbf
+          osmium tags-filter /tmp/brasil.osm.pbf \
+            nwr/amenity=charging_station,fuel,parking nwr/shop=mall,supermarket,department_store \
+            -o /tmp/filtro.osm.pbf -O
+          rm -f /tmp/brasil.osm.pbf
+          osmium export /tmp/filtro.osm.pbf -f geojsonseq -u type_id -o /tmp/postos.geojsonseq -O
+          ls -la /tmp/postos.geojsonseq
+
+      - name: Varrer o Brasil e montar a base
         if: ${{ !inputs.pular_varredura }}
         continue-on-error: true      # se a varredura falhar, o site é publicado mesmo assim (com a base anterior)
         timeout-minutes: 150
         env:
           OCM_KEY: ${{ secrets.OCM_KEY }}
+          OSM_GEOJSONSEQ: /tmp/postos.geojsonseq
         run: python scripts/atualizar_base.py
 
       - name: Salvar a base no repositório (se mudou)
@@ -61,11 +81,26 @@ jobs:
           fi
 
       - name: Separar só os arquivos do site
+        env:
+          OCM_KEY: ${{ secrets.OCM_KEY }}
         run: |
           mkdir -p _site
           cp index.html manifest.webmanifest _site/
           [ -f privacidade.html ] && cp privacidade.html _site/
           cp -r icons data _site/
+          # Chave do Open Charge Map (se cadastrada) vale para todos que abrirem o site
+          python3 - <<'PY'
+          import os, re
+          k = (os.environ.get("OCM_KEY") or "").strip()
+          if k and re.fullmatch(r"[A-Za-z0-9-]{8,80}", k):
+              p = "_site/index.html"
+              s = open(p, encoding="utf-8").read()
+              s = s.replace('const OCM_KEY_DEFAULT = "";', 'const OCM_KEY_DEFAULT = "%s";' % k, 1)
+              open(p, "w", encoding="utf-8").write(s)
+              print("Chave OCM aplicada ao site.")
+          else:
+              print("Sem chave OCM: site usa só OpenStreetMap + verificados.")
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
