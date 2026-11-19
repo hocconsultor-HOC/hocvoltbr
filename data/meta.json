@@ -1,7 +1,7 @@
 {
- "atualizado_em": "2026-11-18T17:17-03:00",
- "total_elementos": 3484,
- "eletropostos": 2401,
+ "atualizado_em": "2026-11-19T00:55-03:00",
+ "total_elementos": 3486,
+ "eletropostos": 2402,
  "postos_combustivel_proximos_ou_com_recarga": 823,
  "open_charge_map_adicionados": 1994,
  "estados_com_falha_hoje": [],
@@ -76,7 +76,7 @@
    "postos_combustivel": 22
   },
   "PR": {
-   "eletropostos": 193,
+   "eletropostos": 194,
    "postos_combustivel": 47
   },
   "RJ": {
